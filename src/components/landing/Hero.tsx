@@ -29,7 +29,7 @@ export function Hero() {
           {/* Heading */}
           <h1 className="font-display text-4xl md:text-6xl lg:text-7xl font-bold text-primary-foreground mb-6 animate-slide-up">
             Invest in
-            <span className="block mt-2 bg-gradient-gold bg-clip-text text-transparent">
+            <span className="block mt-2" style={{ background: 'linear-gradient(135deg, hsl(45 93% 47%) 0%, hsl(38 92% 50%) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
               Your Future
             </span>
           </h1>
