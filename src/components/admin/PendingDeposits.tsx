@@ -9,7 +9,12 @@ import {
   XCircle, 
   RefreshCw,
   Search,
-  Clock
+  Clock,
+  Image,
+  ExternalLink,
+  Crown,
+  Diamond,
+  Medal
 } from 'lucide-react';
 import {
   Dialog,
@@ -31,11 +36,21 @@ interface Deposit {
   tx_hash: string | null;
   status: string;
   created_at: string;
+  proof_image_url: string | null;
   profiles?: {
     full_name: string | null;
     email: string | null;
   };
+  investments?: {
+    plan: string;
+  };
 }
+
+const planIcons: Record<string, any> = {
+  silver: Medal,
+  gold: Crown,
+  diamond: Diamond,
+};
 
 export function PendingDeposits() {
   const { user } = useAuth();
@@ -45,6 +60,7 @@ export function PendingDeposits() {
   const [selectedDeposit, setSelectedDeposit] = useState<Deposit | null>(null);
   const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
   const [rejectDialogOpen, setRejectDialogOpen] = useState(false);
+  const [imageDialogOpen, setImageDialogOpen] = useState(false);
   const [txHash, setTxHash] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
   const [processing, setProcessing] = useState(false);
@@ -56,7 +72,6 @@ export function PendingDeposits() {
   const fetchDeposits = async () => {
     setIsLoading(true);
     try {
-      // Fetch deposits
       const { data: depositsData, error: depositsError } = await supabase
         .from('deposits')
         .select('*')
@@ -65,17 +80,22 @@ export function PendingDeposits() {
 
       if (depositsError) throw depositsError;
 
-      // Fetch profiles for each deposit
       const userIds = [...new Set(depositsData?.map(d => d.user_id) || [])];
+      
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('user_id, full_name, email')
         .in('user_id', userIds);
 
-      // Combine data
+      const { data: investmentsData } = await supabase
+        .from('investments')
+        .select('user_id, plan')
+        .in('user_id', userIds);
+
       const combinedDeposits = depositsData?.map(deposit => ({
         ...deposit,
-        profiles: profilesData?.find(p => p.user_id === deposit.user_id) || null
+        profiles: profilesData?.find(p => p.user_id === deposit.user_id) || null,
+        investments: investmentsData?.find(i => i.user_id === deposit.user_id) || null
       })) || [];
 
       setDeposits(combinedDeposits);
@@ -92,7 +112,6 @@ export function PendingDeposits() {
     
     setProcessing(true);
     try {
-      // Update deposit status
       const { error: depositError } = await supabase
         .from('deposits')
         .update({
@@ -105,7 +124,6 @@ export function PendingDeposits() {
 
       if (depositError) throw depositError;
 
-      // Update user's investment balance
       const { data: currentInvestment, error: fetchError } = await supabase
         .from('investments')
         .select('balance')
@@ -123,7 +141,6 @@ export function PendingDeposits() {
 
       if (updateError) throw updateError;
 
-      // Create transaction record
       const { error: txError } = await supabase
         .from('transactions')
         .insert({
@@ -193,7 +210,7 @@ export function PendingDeposits() {
     <div className="rounded-2xl bg-card border border-border p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h2 className="font-display text-xl font-semibold text-foreground">
-          Pending Deposits
+          Pending Deposits ({filteredDeposits.length})
         </h2>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -214,7 +231,7 @@ export function PendingDeposits() {
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
       ) : filteredDeposits.length === 0 ? (
@@ -224,61 +241,119 @@ export function PendingDeposits() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredDeposits.map((deposit) => (
-            <div
-              key={deposit.id}
-              className="flex flex-col md:flex-row md:items-center justify-between p-4 rounded-xl bg-muted/50 gap-4"
-            >
-              <div className="flex items-center gap-4">
-                <div className={`crypto-icon ${
-                  deposit.crypto_type === 'BTC' ? 'crypto-btc' :
-                  deposit.crypto_type === 'USDT' ? 'crypto-usdt' : 'crypto-ada'
-                }`}>
-                  {deposit.crypto_type.charAt(0)}
+          {filteredDeposits.map((deposit) => {
+            const userPlan = deposit.investments?.plan || 'silver';
+            const PlanIcon = planIcons[userPlan] || Medal;
+            
+            return (
+              <div
+                key={deposit.id}
+                className="flex flex-col lg:flex-row lg:items-center justify-between p-4 rounded-xl bg-muted/50 border border-border gap-4"
+              >
+                <div className="flex items-start gap-4 flex-1">
+                  <div className={`crypto-icon ${
+                    deposit.crypto_type === 'BTC' ? 'crypto-btc' :
+                    deposit.crypto_type === 'USDT' ? 'crypto-usdt' : 'crypto-ada'
+                  }`}>
+                    {deposit.crypto_type.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="font-semibold text-foreground">
+                        ${deposit.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </p>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        userPlan === 'diamond' ? 'bg-cyan-500/10 text-cyan-600' :
+                        userPlan === 'gold' ? 'bg-amber-500/10 text-amber-600' :
+                        'bg-slate-500/10 text-slate-600'
+                      }`}>
+                        <PlanIcon className="h-3 w-3" />
+                        {userPlan.charAt(0).toUpperCase() + userPlan.slice(1)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {deposit.crypto_amount} {deposit.crypto_type} • {deposit.profiles?.email || 'Unknown user'}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(deposit.created_at).toLocaleString()}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-medium text-foreground">
-                    ${deposit.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {deposit.crypto_amount} {deposit.crypto_type} • {deposit.profiles?.email || 'Unknown user'}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {new Date(deposit.created_at).toLocaleString()}
-                  </p>
-                </div>
-              </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="success"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => {
-                    setSelectedDeposit(deposit);
-                    setConfirmDialogOpen(true);
-                  }}
-                >
-                  <CheckCircle className="h-4 w-4" />
-                  Confirm
-                </Button>
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  className="gap-2"
-                  onClick={() => {
-                    setSelectedDeposit(deposit);
-                    setRejectDialogOpen(true);
-                  }}
-                >
-                  <XCircle className="h-4 w-4" />
-                  Reject
-                </Button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {deposit.proof_image_url && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="gap-2"
+                      onClick={() => {
+                        setSelectedDeposit(deposit);
+                        setImageDialogOpen(true);
+                      }}
+                    >
+                      <Image className="h-4 w-4" />
+                      View Proof
+                    </Button>
+                  )}
+                  <Button
+                    variant="success"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      setSelectedDeposit(deposit);
+                      setConfirmDialogOpen(true);
+                    }}
+                  >
+                    <CheckCircle className="h-4 w-4" />
+                    Confirm
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => {
+                      setSelectedDeposit(deposit);
+                      setRejectDialogOpen(true);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4" />
+                    Reject
+                  </Button>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
+
+      {/* Image Preview Dialog */}
+      <Dialog open={imageDialogOpen} onOpenChange={setImageDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Transaction Proof</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {selectedDeposit?.proof_image_url && (
+              <div className="space-y-4">
+                <img 
+                  src={selectedDeposit.proof_image_url} 
+                  alt="Transaction proof" 
+                  className="w-full rounded-xl border border-border"
+                />
+                <a 
+                  href={selectedDeposit.proof_image_url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open in new tab
+                </a>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Confirm Dialog */}
       <Dialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
@@ -287,8 +362,8 @@ export function PendingDeposits() {
             <DialogTitle>Confirm Deposit</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="p-4 rounded-lg bg-success/10 border border-success/20">
-              <p className="font-semibold text-success">
+            <div className="p-4 rounded-xl bg-success/10 border border-success/20">
+              <p className="font-semibold text-success text-lg">
                 ${selectedDeposit?.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-sm text-muted-foreground">
@@ -334,8 +409,8 @@ export function PendingDeposits() {
             <DialogTitle>Reject Deposit</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
-              <p className="font-semibold text-destructive">
+            <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
+              <p className="font-semibold text-destructive text-lg">
                 ${selectedDeposit?.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-sm text-muted-foreground">
