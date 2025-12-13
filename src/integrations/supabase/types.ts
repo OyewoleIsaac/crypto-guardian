@@ -23,6 +23,7 @@ export type Database = {
           crypto_amount: number
           crypto_type: string
           id: string
+          proof_image_url: string | null
           status: string
           tx_hash: string | null
           updated_at: string
@@ -37,6 +38,7 @@ export type Database = {
           crypto_amount: number
           crypto_type: string
           id?: string
+          proof_image_url?: string | null
           status?: string
           tx_hash?: string | null
           updated_at?: string
@@ -51,6 +53,7 @@ export type Database = {
           crypto_amount?: number
           crypto_type?: string
           id?: string
+          proof_image_url?: string | null
           status?: string
           tx_hash?: string | null
           updated_at?: string
@@ -65,6 +68,7 @@ export type Database = {
           created_at: string
           currency: string
           id: string
+          plan: string | null
           updated_at: string
           user_id: string
         }
@@ -73,6 +77,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          plan?: string | null
           updated_at?: string
           user_id: string
         }
@@ -81,6 +86,7 @@ export type Database = {
           created_at?: string
           currency?: string
           id?: string
+          plan?: string | null
           updated_at?: string
           user_id?: string
         }

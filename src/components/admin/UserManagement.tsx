@@ -10,7 +10,10 @@ import {
   User,
   DollarSign,
   Plus,
-  Minus
+  Minus,
+  Crown,
+  Diamond,
+  Medal
 } from 'lucide-react';
 import {
   Dialog,
@@ -31,8 +34,21 @@ interface UserWithInvestment {
   investment?: {
     balance: number;
     currency: string;
+    plan: string;
   };
 }
+
+const planIcons: Record<string, any> = {
+  silver: Medal,
+  gold: Crown,
+  diamond: Diamond,
+};
+
+const planColors: Record<string, string> = {
+  silver: 'bg-slate-500/10 text-slate-600 border-slate-300',
+  gold: 'bg-amber-500/10 text-amber-600 border-amber-400',
+  diamond: 'bg-cyan-500/10 text-cyan-600 border-cyan-400',
+};
 
 export function UserManagement() {
   const { user } = useAuth();
@@ -53,7 +69,6 @@ export function UserManagement() {
   const fetchUsers = async () => {
     setIsLoading(true);
     try {
-      // Fetch profiles
       const { data: profiles, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
@@ -61,14 +76,12 @@ export function UserManagement() {
 
       if (profilesError) throw profilesError;
 
-      // Fetch investments
       const { data: investments, error: investmentsError } = await supabase
         .from('investments')
         .select('*');
 
       if (investmentsError) throw investmentsError;
 
-      // Combine data
       const combinedUsers = profiles?.map((profile) => {
         const investment = investments?.find((inv) => inv.user_id === profile.user_id);
         return {
@@ -76,6 +89,7 @@ export function UserManagement() {
           investment: investment ? {
             balance: Number(investment.balance),
             currency: investment.currency,
+            plan: investment.plan || 'silver',
           } : undefined,
         };
       }) || [];
@@ -105,7 +119,6 @@ export function UserManagement() {
         ? currentBalance + amount 
         : Math.max(0, currentBalance - amount);
 
-      // Update investment balance
       const { error: updateError } = await supabase
         .from('investments')
         .update({ balance: newBalance })
@@ -113,7 +126,6 @@ export function UserManagement() {
 
       if (updateError) throw updateError;
 
-      // Create transaction record
       const { error: txError } = await supabase
         .from('transactions')
         .insert({
@@ -152,7 +164,7 @@ export function UserManagement() {
     <div className="rounded-2xl bg-card border border-border p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <h2 className="font-display text-xl font-semibold text-foreground">
-          User Management
+          User Management ({filteredUsers.length})
         </h2>
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -173,7 +185,7 @@ export function UserManagement() {
       {isLoading ? (
         <div className="space-y-4">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-20 rounded-lg bg-muted animate-pulse" />
+            <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />
           ))}
         </div>
       ) : filteredUsers.length === 0 ? (
@@ -188,51 +200,63 @@ export function UserManagement() {
               <tr className="border-b border-border">
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">User</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Email</th>
+                <th className="text-center py-3 px-4 text-sm font-medium text-muted-foreground">Plan</th>
                 <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Balance</th>
                 <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Joined</th>
                 <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((u) => (
-                <tr key={u.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-medium">
-                        {u.full_name?.charAt(0) || u.email?.charAt(0) || '?'}
+              {filteredUsers.map((u) => {
+                const userPlan = u.investment?.plan || 'silver';
+                const PlanIcon = planIcons[userPlan] || Medal;
+                
+                return (
+                  <tr key={u.id} className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                    <td className="py-4 px-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary font-medium">
+                          {u.full_name?.charAt(0) || u.email?.charAt(0) || '?'}
+                        </div>
+                        <span className="font-medium text-foreground">
+                          {u.full_name || 'No name'}
+                        </span>
                       </div>
-                      <span className="font-medium text-foreground">
-                        {u.full_name || 'No name'}
+                    </td>
+                    <td className="py-4 px-4 text-muted-foreground">
+                      {u.email || 'No email'}
+                    </td>
+                    <td className="py-4 px-4 text-center">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border ${planColors[userPlan]}`}>
+                        <PlanIcon className="h-3.5 w-3.5" />
+                        {userPlan.charAt(0).toUpperCase() + userPlan.slice(1)}
                       </span>
-                    </div>
-                  </td>
-                  <td className="py-4 px-4 text-muted-foreground">
-                    {u.email || 'No email'}
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <span className="font-semibold text-foreground">
-                      ${u.investment?.balance.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}
-                    </span>
-                  </td>
-                  <td className="py-4 px-4 text-muted-foreground text-sm">
-                    {new Date(u.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="py-4 px-4 text-right">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="gap-2"
-                      onClick={() => {
-                        setSelectedUser(u);
-                        setAdjustDialogOpen(true);
-                      }}
-                    >
-                      <DollarSign className="h-4 w-4" />
-                      Adjust
-                    </Button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <span className="font-semibold text-foreground">
+                        ${u.investment?.balance.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}
+                      </span>
+                    </td>
+                    <td className="py-4 px-4 text-muted-foreground text-sm">
+                      {new Date(u.created_at).toLocaleDateString()}
+                    </td>
+                    <td className="py-4 px-4 text-right">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="gap-2"
+                        onClick={() => {
+                          setSelectedUser(u);
+                          setAdjustDialogOpen(true);
+                        }}
+                      >
+                        <DollarSign className="h-4 w-4" />
+                        Adjust
+                      </Button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -245,11 +269,17 @@ export function UserManagement() {
             <DialogTitle>Adjust User Balance</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="p-4 rounded-lg bg-muted">
+            <div className="p-4 rounded-xl bg-muted border border-border">
               <p className="text-sm text-muted-foreground">User</p>
-              <p className="font-medium">{selectedUser?.full_name || selectedUser?.email}</p>
+              <p className="font-medium text-foreground">{selectedUser?.full_name || selectedUser?.email}</p>
+              <div className="flex items-center gap-2 mt-2">
+                <p className="text-sm text-muted-foreground">Plan:</p>
+                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${planColors[selectedUser?.investment?.plan || 'silver']}`}>
+                  {(selectedUser?.investment?.plan || 'silver').charAt(0).toUpperCase() + (selectedUser?.investment?.plan || 'silver').slice(1)}
+                </span>
+              </div>
               <p className="text-sm text-muted-foreground mt-2">Current Balance</p>
-              <p className="font-semibold text-lg">
+              <p className="font-semibold text-xl text-foreground">
                 ${selectedUser?.investment?.balance.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}
               </p>
             </div>
