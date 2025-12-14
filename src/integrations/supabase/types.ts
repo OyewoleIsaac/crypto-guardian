@@ -14,19 +14,85 @@ export type Database = {
   }
   public: {
     Tables: {
+      active_investments: {
+        Row: {
+          claimed_roi: number
+          created_at: string
+          daily_roi: number
+          deposit_id: string | null
+          end_date: string
+          id: string
+          plan_id: string
+          principal_amount: number
+          start_date: string
+          status: string
+          total_roi_earned: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          claimed_roi?: number
+          created_at?: string
+          daily_roi: number
+          deposit_id?: string | null
+          end_date: string
+          id?: string
+          plan_id: string
+          principal_amount: number
+          start_date?: string
+          status?: string
+          total_roi_earned?: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          claimed_roi?: number
+          created_at?: string
+          daily_roi?: number
+          deposit_id?: string | null
+          end_date?: string
+          id?: string
+          plan_id?: string
+          principal_amount?: number
+          start_date?: string
+          status?: string
+          total_roi_earned?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "active_investments_deposit_id_fkey"
+            columns: ["deposit_id"]
+            isOneToOne: false
+            referencedRelation: "deposits"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "active_investments_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "investment_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       deposits: {
         Row: {
           admin_notes: string | null
           amount: number
           confirmed_by: string | null
+          conversion_rate: number | null
           created_at: string
           crypto_amount: number
           crypto_type: string
           id: string
+          plan_id: string | null
           proof_image_url: string | null
           status: string
           tx_hash: string | null
           updated_at: string
+          usd_amount: number | null
           user_id: string
           wallet_address: string
         }
@@ -34,14 +100,17 @@ export type Database = {
           admin_notes?: string | null
           amount: number
           confirmed_by?: string | null
+          conversion_rate?: number | null
           created_at?: string
           crypto_amount: number
           crypto_type: string
           id?: string
+          plan_id?: string | null
           proof_image_url?: string | null
           status?: string
           tx_hash?: string | null
           updated_at?: string
+          usd_amount?: number | null
           user_id: string
           wallet_address: string
         }
@@ -49,16 +118,78 @@ export type Database = {
           admin_notes?: string | null
           amount?: number
           confirmed_by?: string | null
+          conversion_rate?: number | null
           created_at?: string
           crypto_amount?: number
           crypto_type?: string
           id?: string
+          plan_id?: string | null
           proof_image_url?: string | null
           status?: string
           tx_hash?: string | null
           updated_at?: string
+          usd_amount?: number | null
           user_id?: string
           wallet_address?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deposits_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "investment_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      investment_plans: {
+        Row: {
+          color_class: string | null
+          created_at: string
+          description: string | null
+          display_order: number | null
+          duration_days: number
+          features: string[] | null
+          icon_name: string | null
+          id: string
+          is_active: boolean
+          max_investment: number | null
+          min_investment: number
+          name: string
+          roi_percentage: number
+          updated_at: string
+        }
+        Insert: {
+          color_class?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number | null
+          duration_days?: number
+          features?: string[] | null
+          icon_name?: string | null
+          id?: string
+          is_active?: boolean
+          max_investment?: number | null
+          min_investment?: number
+          name: string
+          roi_percentage?: number
+          updated_at?: string
+        }
+        Update: {
+          color_class?: string | null
+          created_at?: string
+          description?: string | null
+          display_order?: number | null
+          duration_days?: number
+          features?: string[] | null
+          icon_name?: string | null
+          id?: string
+          is_active?: boolean
+          max_investment?: number | null
+          min_investment?: number
+          name?: string
+          roi_percentage?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -92,6 +223,39 @@ export type Database = {
         }
         Relationships: []
       }
+      payment_methods: {
+        Row: {
+          created_at: string
+          crypto_name: string
+          crypto_type: string
+          icon_class: string | null
+          id: string
+          is_enabled: boolean
+          updated_at: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          crypto_name: string
+          crypto_type: string
+          icon_class?: string | null
+          id?: string
+          is_enabled?: boolean
+          updated_at?: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          crypto_name?: string
+          crypto_type?: string
+          icon_class?: string | null
+          id?: string
+          is_enabled?: boolean
+          updated_at?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -99,8 +263,10 @@ export type Database = {
           email: string | null
           full_name: string | null
           id: string
+          phone: string | null
           updated_at: string
           user_id: string
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -108,8 +274,10 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id: string
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -117,8 +285,10 @@ export type Database = {
           email?: string | null
           full_name?: string | null
           id?: string
+          phone?: string | null
           updated_at?: string
           user_id?: string
+          username?: string | null
         }
         Relationships: []
       }
