@@ -21,6 +21,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PendingDeposits } from '@/components/admin/PendingDeposits';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { AdminStats } from '@/components/admin/AdminStats';
+import { PlanManagement } from '@/components/admin/PlanManagement';
+import { PaymentMethodsManagement } from '@/components/admin/PaymentMethodsManagement';
+import { ProfileSection } from '@/components/profile/ProfileSection';
 
 export default function Admin() {
   const { user, isAdmin, isLoading: authLoading } = useAuth();
@@ -65,14 +68,26 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs defaultValue="deposits" className="mt-8">
-          <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsList className="grid w-full max-w-4xl grid-cols-5">
             <TabsTrigger value="deposits" className="gap-2">
               <Clock className="h-4 w-4" />
-              Pending Deposits
+              Deposits
             </TabsTrigger>
             <TabsTrigger value="users" className="gap-2">
               <Users className="h-4 w-4" />
-              User Management
+              Users
+            </TabsTrigger>
+            <TabsTrigger value="plans" className="gap-2">
+              <TrendingUp className="h-4 w-4" />
+              Plans
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="gap-2">
+              <DollarSign className="h-4 w-4" />
+              Payments
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="gap-2">
+              <Users className="h-4 w-4" />
+              Profile
             </TabsTrigger>
           </TabsList>
 
@@ -82,6 +97,20 @@ export default function Admin() {
 
           <TabsContent value="users" className="mt-6">
             <UserManagement />
+          </TabsContent>
+
+          <TabsContent value="plans" className="mt-6">
+            <PlanManagement />
+          </TabsContent>
+
+          <TabsContent value="payments" className="mt-6">
+            <PaymentMethodsManagement />
+          </TabsContent>
+
+          <TabsContent value="profile" className="mt-6">
+            <div className="max-w-md">
+              <ProfileSection showBalance={false} />
+            </div>
           </TabsContent>
         </Tabs>
       </main>
