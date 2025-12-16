@@ -251,3 +251,5 @@ export function ProfileSection({ balance = 0, showBalance = true }: ProfileSecti
     </div>
   );
 }
+
+export { PasswordChangeSection } from './PasswordChangeSection';

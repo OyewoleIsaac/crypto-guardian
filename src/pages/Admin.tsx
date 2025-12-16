@@ -23,7 +23,7 @@ import { UserManagement } from '@/components/admin/UserManagement';
 import { AdminStats } from '@/components/admin/AdminStats';
 import { PlanManagement } from '@/components/admin/PlanManagement';
 import { PaymentMethodsManagement } from '@/components/admin/PaymentMethodsManagement';
-import { ProfileSection } from '@/components/profile/ProfileSection';
+import { ProfileSection, PasswordChangeSection } from '@/components/profile/ProfileSection';
 
 export default function Admin() {
   const { user, isAdmin, isLoading: authLoading } = useAuth();
@@ -108,8 +108,9 @@ export default function Admin() {
           </TabsContent>
 
           <TabsContent value="profile" className="mt-6">
-            <div className="max-w-md">
+            <div className="grid gap-6 md:grid-cols-2 max-w-2xl">
               <ProfileSection showBalance={false} />
+              <PasswordChangeSection />
             </div>
           </TabsContent>
         </Tabs>
