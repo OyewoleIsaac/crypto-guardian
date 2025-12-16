@@ -29,14 +29,15 @@ export default function Auth() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   
-  const { signIn, signUp, user } = useAuth();
+  const { signIn, signUp, user, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   useEffect(() => {
     if (user) {
-      navigate('/dashboard');
+      // Redirect admins to admin dashboard, users to user dashboard
+      navigate(isAdmin ? '/admin' : '/dashboard');
     }
-  }, [user, navigate]);
+  }, [user, isAdmin, navigate]);
 
   useEffect(() => {
     setIsSignUp(searchParams.get('mode') === 'signup');
@@ -64,6 +65,7 @@ export default function Auth() {
           }
         } else {
           toast.success('Account created successfully! Welcome to CryptoVest.');
+          // New signups are always regular users, redirect to dashboard
           navigate('/dashboard');
         }
       } else {
@@ -83,7 +85,7 @@ export default function Auth() {
           }
         } else {
           toast.success('Welcome back!');
-          navigate('/dashboard');
+          // isAdmin will be updated by AuthContext, useEffect will handle redirect
         }
       }
     } catch (error) {
