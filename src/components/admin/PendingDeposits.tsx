@@ -37,12 +37,20 @@ interface Deposit {
   status: string;
   created_at: string;
   proof_image_url: string | null;
+  plan_id: string | null;
+  usd_amount: number | null;
   profiles?: {
     full_name: string | null;
     email: string | null;
   };
   investments?: {
     plan: string;
+  };
+  investment_plan?: {
+    id: string;
+    name: string;
+    roi_percentage: number;
+    duration_days: number;
   };
 }
 
@@ -81,6 +89,7 @@ export function PendingDeposits() {
       if (depositsError) throw depositsError;
 
       const userIds = [...new Set(depositsData?.map(d => d.user_id) || [])];
+      const planIds = [...new Set(depositsData?.filter(d => d.plan_id).map(d => d.plan_id) || [])];
       
       const { data: profilesData } = await supabase
         .from('profiles')
@@ -92,10 +101,20 @@ export function PendingDeposits() {
         .select('user_id, plan')
         .in('user_id', userIds);
 
+      let plansData: any[] = [];
+      if (planIds.length > 0) {
+        const { data } = await supabase
+          .from('investment_plans')
+          .select('id, name, roi_percentage, duration_days')
+          .in('id', planIds);
+        plansData = data || [];
+      }
+
       const combinedDeposits = depositsData?.map(deposit => ({
         ...deposit,
         profiles: profilesData?.find(p => p.user_id === deposit.user_id) || null,
-        investments: investmentsData?.find(i => i.user_id === deposit.user_id) || null
+        investments: investmentsData?.find(i => i.user_id === deposit.user_id) || null,
+        investment_plan: plansData?.find(p => p.id === deposit.plan_id) || null
       })) || [];
 
       setDeposits(combinedDeposits);
@@ -112,6 +131,7 @@ export function PendingDeposits() {
     
     setProcessing(true);
     try {
+      // 1. Update deposit status
       const { error: depositError } = await supabase
         .from('deposits')
         .update({
@@ -124,6 +144,7 @@ export function PendingDeposits() {
 
       if (depositError) throw depositError;
 
+      // 2. Update user balance
       const { data: currentInvestment, error: fetchError } = await supabase
         .from('investments')
         .select('balance')
@@ -132,7 +153,8 @@ export function PendingDeposits() {
 
       if (fetchError) throw fetchError;
 
-      const newBalance = Number(currentInvestment.balance) + Number(selectedDeposit.amount);
+      const depositAmount = selectedDeposit.usd_amount || selectedDeposit.amount;
+      const newBalance = Number(currentInvestment.balance) + Number(depositAmount);
 
       const { error: updateError } = await supabase
         .from('investments')
@@ -141,19 +163,76 @@ export function PendingDeposits() {
 
       if (updateError) throw updateError;
 
+      // 3. Record transaction
       const { error: txError } = await supabase
         .from('transactions')
         .insert({
           user_id: selectedDeposit.user_id,
           type: 'deposit',
-          amount: selectedDeposit.amount,
+          amount: depositAmount,
           description: `Deposit confirmed - ${selectedDeposit.crypto_type}`,
           performed_by: user.id,
         });
 
       if (txError) throw txError;
 
-      toast.success('Deposit confirmed successfully');
+      // 4. If deposit has a plan_id, create active investment
+      if (selectedDeposit.plan_id && selectedDeposit.investment_plan) {
+        const plan = selectedDeposit.investment_plan;
+        const principalAmount = depositAmount;
+        
+        // Calculate daily ROI
+        const totalRoi = (principalAmount * plan.roi_percentage) / 100;
+        const dailyRoi = totalRoi / plan.duration_days;
+        
+        // Calculate end date
+        const startDate = new Date();
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + plan.duration_days);
+
+        const { error: investmentError } = await supabase
+          .from('active_investments')
+          .insert({
+            user_id: selectedDeposit.user_id,
+            plan_id: selectedDeposit.plan_id,
+            deposit_id: selectedDeposit.id,
+            principal_amount: principalAmount,
+            daily_roi: dailyRoi,
+            total_roi_earned: 0,
+            claimed_roi: 0,
+            start_date: startDate.toISOString(),
+            end_date: endDate.toISOString(),
+            status: 'active',
+          });
+
+        if (investmentError) throw investmentError;
+
+        // Deduct the principal from the balance (it's now in the investment)
+        const { error: deductError } = await supabase
+          .from('investments')
+          .update({ balance: newBalance - principalAmount })
+          .eq('user_id', selectedDeposit.user_id);
+
+        if (deductError) throw deductError;
+
+        // Record investment transaction
+        const { error: investTxError } = await supabase
+          .from('transactions')
+          .insert({
+            user_id: selectedDeposit.user_id,
+            type: 'investment',
+            amount: -principalAmount,
+            description: `Investment activated - ${plan.name} Plan`,
+            performed_by: user.id,
+          });
+
+        if (investTxError) throw investTxError;
+
+        toast.success(`Deposit confirmed and ${plan.name} Plan activated!`);
+      } else {
+        toast.success('Deposit confirmed successfully');
+      }
+
       setConfirmDialogOpen(false);
       setSelectedDeposit(null);
       setTxHash('');
@@ -253,14 +332,15 @@ export function PendingDeposits() {
                 <div className="flex items-start gap-4 flex-1">
                   <div className={`crypto-icon ${
                     deposit.crypto_type === 'BTC' ? 'crypto-btc' :
-                    deposit.crypto_type === 'USDT' ? 'crypto-usdt' : 'crypto-ada'
+                    deposit.crypto_type === 'USDT' ? 'crypto-usdt' : 
+                    deposit.crypto_type === 'ETH' ? 'crypto-eth' : 'crypto-ada'
                   }`}>
                     {deposit.crypto_type.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <p className="font-semibold text-foreground">
-                        ${deposit.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        ${(deposit.usd_amount || deposit.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                       </p>
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                         userPlan === 'diamond' ? 'bg-cyan-500/10 text-cyan-600' :
@@ -270,6 +350,11 @@ export function PendingDeposits() {
                         <PlanIcon className="h-3 w-3" />
                         {userPlan.charAt(0).toUpperCase() + userPlan.slice(1)}
                       </span>
+                      {deposit.investment_plan && (
+                        <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                          → {deposit.investment_plan.name} Plan
+                        </span>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {deposit.crypto_amount} {deposit.crypto_type} • {deposit.profiles?.email || 'Unknown user'}
@@ -364,11 +449,16 @@ export function PendingDeposits() {
           <div className="space-y-4 py-4">
             <div className="p-4 rounded-xl bg-success/10 border border-success/20">
               <p className="font-semibold text-success text-lg">
-                ${selectedDeposit?.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                ${(selectedDeposit?.usd_amount || selectedDeposit?.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-sm text-muted-foreground">
                 {selectedDeposit?.crypto_amount} {selectedDeposit?.crypto_type}
               </p>
+              {selectedDeposit?.investment_plan && (
+                <p className="text-sm text-primary mt-2 font-medium">
+                  Will activate: {selectedDeposit.investment_plan.name} Plan ({selectedDeposit.investment_plan.roi_percentage}% ROI over {selectedDeposit.investment_plan.duration_days} days)
+                </p>
+              )}
             </div>
             
             <div className="space-y-2">
@@ -411,7 +501,7 @@ export function PendingDeposits() {
           <div className="space-y-4 py-4">
             <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20">
               <p className="font-semibold text-destructive text-lg">
-                ${selectedDeposit?.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                ${(selectedDeposit?.usd_amount || selectedDeposit?.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
               <p className="text-sm text-muted-foreground">
                 {selectedDeposit?.crypto_amount} {selectedDeposit?.crypto_type}

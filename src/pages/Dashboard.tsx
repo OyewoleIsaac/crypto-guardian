@@ -16,12 +16,18 @@ import {
   Diamond,
   Medal,
   BarChart3,
-  Calendar
+  Calendar,
+  User,
+  Briefcase
 } from 'lucide-react';
-import { DepositModal } from '@/components/dashboard/DepositModal';
+import { NewDepositModal } from '@/components/dashboard/NewDepositModal';
 import { TransactionsList } from '@/components/dashboard/TransactionsList';
-import { InvestmentPlans, PLANS } from '@/components/dashboard/InvestmentPlans';
+import { InvestmentPlans } from '@/components/dashboard/InvestmentPlans';
+import { ActiveInvestmentCard } from '@/components/dashboard/ActiveInvestmentCard';
+import { ProfileSection } from '@/components/profile/ProfileSection';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { useActiveInvestments } from '@/hooks/useActiveInvestments';
+import { InvestmentPlan } from '@/hooks/useInvestmentPlans';
 
 interface Investment {
   id: string;
@@ -52,7 +58,15 @@ export default function Dashboard() {
   const [pendingDeposits, setPendingDeposits] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [depositModalOpen, setDepositModalOpen] = useState(false);
-  const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
+
+  const { 
+    activeInvestments, 
+    isLoading: investmentsLoading, 
+    refetch: refetchInvestments,
+    getClaimableRoi,
+    canWithdraw,
+    getDaysRemaining
+  } = useActiveInvestments();
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -105,24 +119,77 @@ export default function Dashboard() {
     }
   };
 
-  const handleSelectPlan = async (planId: string) => {
+  const handleSelectPlan = async (plan: InvestmentPlan) => {
     if (!user) return;
-    setIsUpdatingPlan(true);
+    
+    // Plan is selected, open deposit modal with preselected plan
+    setDepositModalOpen(true);
+    toast.info(`To activate ${plan.name}, please complete a deposit of at least $${plan.min_investment.toLocaleString()}`);
+  };
+
+  const handleRefreshInvestments = () => {
+    fetchData();
+    refetchInvestments();
+  };
+
+  const handleWithdraw = async (investmentId: string) => {
+    if (!user) return;
+    
     try {
-      const { error } = await supabase
+      const investment = activeInvestments.find(i => i.id === investmentId);
+      if (!investment) throw new Error('Investment not found');
+
+      // First claim any remaining ROI
+      const remainingRoi = getClaimableRoi(investment);
+      const totalAmount = investment.principal_amount + remainingRoi;
+
+      // Update investment status
+      const { error: updateError } = await supabase
+        .from('active_investments')
+        .update({ 
+          status: 'completed',
+          claimed_roi: investment.claimed_roi + remainingRoi
+        })
+        .eq('id', investmentId);
+
+      if (updateError) throw updateError;
+
+      // Add to user balance
+      const { data: currentInvestment, error: fetchError } = await supabase
         .from('investments')
-        .update({ plan: planId })
+        .select('balance')
+        .eq('user_id', user.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const newBalance = Number(currentInvestment.balance) + totalAmount;
+
+      const { error: balanceError } = await supabase
+        .from('investments')
+        .update({ balance: newBalance })
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (balanceError) throw balanceError;
 
-      toast.success(`Switched to ${planId.charAt(0).toUpperCase() + planId.slice(1)} plan!`);
+      // Record transaction
+      const { error: txError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: user.id,
+          type: 'withdrawal',
+          amount: totalAmount,
+          description: `Investment completed - Principal + ROI`,
+        });
+
+      if (txError) throw txError;
+
+      toast.success(`Successfully withdrew $${totalAmount.toFixed(2)}!`);
       fetchData();
+      refetchInvestments();
     } catch (error) {
-      console.error('Error updating plan:', error);
-      toast.error('Failed to update plan');
-    } finally {
-      setIsUpdatingPlan(false);
+      console.error('Error withdrawing:', error);
+      toast.error('Failed to withdraw investment');
     }
   };
 
@@ -134,9 +201,13 @@ export default function Dashboard() {
     );
   }
 
+  const currentBalance = investment?.balance || 0;
   const currentPlan = investment?.plan || 'silver';
   const PlanIcon = planIcons[currentPlan] || Medal;
-  const planDetails = PLANS.find(p => p.id === currentPlan);
+
+  // Calculate total active ROI
+  const totalActiveInvestment = activeInvestments.reduce((sum, inv) => sum + inv.principal_amount, 0);
+  const totalClaimableRoi = activeInvestments.reduce((sum, inv) => sum + getClaimableRoi(inv), 0);
 
   return (
     <div className="min-h-screen bg-background">
@@ -174,7 +245,7 @@ export default function Dashboard() {
                   <Wallet className="h-6 w-6" />
                 </div>
                 <div>
-                  <span className="text-primary-foreground/80 font-medium">Total Balance</span>
+                  <span className="text-primary-foreground/80 font-medium">Available Balance</span>
                   <div className="flex items-center gap-2 mt-1">
                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                       currentPlan === 'diamond' ? 'bg-cyan-500/20 text-cyan-100' :
@@ -188,12 +259,14 @@ export default function Dashboard() {
                 </div>
               </div>
               <p className="font-display text-4xl font-bold">
-                ${investment?.balance?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}
+                ${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
-              <p className="text-primary-foreground/70 text-sm mt-2 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4" />
-                Expected ROI: {planDetails?.roi || '5-8%'} / 30 days
-              </p>
+              {totalClaimableRoi > 0 && (
+                <p className="text-primary-foreground/70 text-sm mt-2 flex items-center gap-2">
+                  <TrendingUp className="h-4 w-4" />
+                  Claimable ROI: ${totalClaimableRoi.toFixed(2)}
+                </p>
+              )}
             </div>
             <div className="absolute -bottom-8 -right-8 w-32 h-32 rounded-full bg-primary-foreground/10" />
             <div className="absolute -top-8 -right-16 w-40 h-40 rounded-full bg-primary-foreground/5" />
@@ -203,16 +276,16 @@ export default function Dashboard() {
           <div className="rounded-2xl bg-card border border-border p-6 hover:shadow-lg transition-shadow">
             <div className="flex items-center gap-3 mb-4">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10">
-                <BarChart3 className="h-6 w-6 text-success" />
+                <Briefcase className="h-6 w-6 text-success" />
               </div>
-              <span className="text-muted-foreground font-medium">Investment Status</span>
+              <span className="text-muted-foreground font-medium">Active Investments</span>
             </div>
             <p className="font-display text-2xl font-bold text-foreground mb-1">
-              Active
+              ${totalActiveInvestment.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
             <div className="flex items-center gap-2 text-success text-sm">
               <ArrowUpRight className="h-4 w-4" />
-              <span>Growing your wealth</span>
+              <span>{activeInvestments.length} active plan{activeInvestments.length !== 1 ? 's' : ''}</span>
             </div>
           </div>
 
@@ -240,6 +313,10 @@ export default function Dashboard() {
               <BarChart3 className="h-4 w-4" />
               Overview
             </TabsTrigger>
+            <TabsTrigger value="investments" className="gap-2">
+              <Briefcase className="h-4 w-4" />
+              My Investments
+            </TabsTrigger>
             <TabsTrigger value="plans" className="gap-2">
               <Crown className="h-4 w-4" />
               Investment Plans
@@ -247,6 +324,10 @@ export default function Dashboard() {
             <TabsTrigger value="history" className="gap-2">
               <Calendar className="h-4 w-4" />
               History
+            </TabsTrigger>
+            <TabsTrigger value="profile" className="gap-2">
+              <User className="h-4 w-4" />
+              Profile
             </TabsTrigger>
           </TabsList>
 
@@ -293,6 +374,74 @@ export default function Dashboard() {
             </div>
           </TabsContent>
 
+          <TabsContent value="investments" className="space-y-6">
+            <div className="rounded-2xl bg-card border border-border p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="font-display text-xl font-semibold text-foreground mb-1">
+                    Active Investments
+                  </h2>
+                  <p className="text-muted-foreground text-sm">
+                    Track your investments and claim your ROI
+                  </p>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={refetchInvestments}
+                  className="gap-2"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  Refresh
+                </Button>
+              </div>
+
+              {investmentsLoading ? (
+                <div className="space-y-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="h-48 rounded-xl bg-muted animate-pulse" />
+                  ))}
+                </div>
+              ) : activeInvestments.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <p className="font-medium">No active investments</p>
+                  <p className="text-sm mt-1">Select a plan and make a deposit to start investing</p>
+                  <Button 
+                    variant="outline" 
+                    className="mt-4"
+                    onClick={() => setDepositModalOpen(true)}
+                  >
+                    Start Investing
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {activeInvestments.map((inv) => (
+                    <ActiveInvestmentCard
+                      key={inv.id}
+                      investment={inv}
+                      claimableRoi={getClaimableRoi(inv)}
+                      daysRemaining={getDaysRemaining(inv)}
+                      canWithdraw={canWithdraw(inv)}
+                      onUpdate={handleRefreshInvestments}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Withdrawal Notice */}
+              {activeInvestments.length > 0 && (
+                <div className="mt-6 p-4 rounded-xl bg-warning/10 border border-warning/20">
+                  <p className="text-sm text-warning font-medium">
+                    ⚠️ Important: Withdrawals will be available after the investment period ends. 
+                    You can claim your daily ROI at any time, but your principal will remain locked until maturity.
+                  </p>
+                </div>
+              )}
+            </div>
+          </TabsContent>
+
           <TabsContent value="plans">
             <div className="rounded-2xl bg-card border border-border p-6">
               <div className="mb-6">
@@ -306,8 +455,9 @@ export default function Dashboard() {
               
               <InvestmentPlans 
                 currentPlan={currentPlan}
+                currentBalance={currentBalance}
                 onSelectPlan={handleSelectPlan}
-                isLoading={isUpdatingPlan}
+                onDepositSuccess={fetchData}
               />
             </div>
           </TabsContent>
@@ -335,13 +485,20 @@ export default function Dashboard() {
               />
             </div>
           </TabsContent>
+
+          <TabsContent value="profile">
+            <ProfileSection balance={currentBalance} />
+          </TabsContent>
         </Tabs>
       </main>
 
-      <DepositModal 
+      <NewDepositModal 
         open={depositModalOpen} 
         onOpenChange={setDepositModalOpen}
-        onSuccess={fetchData}
+        onSuccess={() => {
+          fetchData();
+          refetchInvestments();
+        }}
       />
     </div>
   );
