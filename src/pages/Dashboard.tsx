@@ -24,7 +24,7 @@ import { NewDepositModal } from '@/components/dashboard/NewDepositModal';
 import { TransactionsList } from '@/components/dashboard/TransactionsList';
 import { InvestmentPlans } from '@/components/dashboard/InvestmentPlans';
 import { ActiveInvestmentCard } from '@/components/dashboard/ActiveInvestmentCard';
-import { ProfileSection } from '@/components/profile/ProfileSection';
+import { ProfileSection, PasswordChangeSection } from '@/components/profile/ProfileSection';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useActiveInvestments } from '@/hooks/useActiveInvestments';
 import { InvestmentPlan } from '@/hooks/useInvestmentPlans';
@@ -487,7 +487,10 @@ export default function Dashboard() {
           </TabsContent>
 
           <TabsContent value="profile">
-            <ProfileSection balance={currentBalance} />
+            <div className="grid gap-6 md:grid-cols-2">
+              <ProfileSection balance={currentBalance} />
+              <PasswordChangeSection />
+            </div>
           </TabsContent>
         </Tabs>
       </main>

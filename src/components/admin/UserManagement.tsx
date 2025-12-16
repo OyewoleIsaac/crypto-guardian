@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { createNotification, logAuditEvent } from '@/hooks/useNotifications';
 
 interface UserWithInvestment {
   id: string;
@@ -137,6 +138,28 @@ export function UserManagement() {
         });
 
       if (txError) throw txError;
+
+      // Create notification for user
+      await createNotification(
+        selectedUser.user_id,
+        adjustType === 'add' ? 'Balance Credited' : 'Balance Debited',
+        `Your account has been ${adjustType === 'add' ? 'credited' : 'debited'} with $${amount.toFixed(2)}. ${adjustReason ? `Reason: ${adjustReason}` : ''}`,
+        'balance'
+      );
+
+      // Log audit event
+      await logAuditEvent(
+        selectedUser.user_id,
+        'balance_adjustment',
+        {
+          type: adjustType,
+          amount,
+          reason: adjustReason,
+          previous_balance: currentBalance,
+          new_balance: newBalance,
+        },
+        user.id
+      );
 
       toast.success(`Balance ${adjustType === 'add' ? 'increased' : 'decreased'} successfully`);
       setAdjustDialogOpen(false);

@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { TrendingUp, LogOut, LayoutDashboard, Shield, Menu, X } from 'lucide-react';
 import { useState } from 'react';
+import { NotificationBell } from '@/components/notifications/NotificationBell';
 
 export function Navbar() {
   const { user, isAdmin, signOut, isLoading } = useAuth();
@@ -48,6 +49,7 @@ export function Navbar() {
                         </Button>
                       </Link>
                     )}
+                    <NotificationBell />
                     <Button variant="outline" size="sm" onClick={handleSignOut} className="gap-2">
                       <LogOut className="h-4 w-4" />
                       Sign Out
