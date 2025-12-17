@@ -18,13 +18,15 @@ import {
   BarChart3,
   Calendar,
   User,
-  Briefcase
+  Briefcase,
+  Users
 } from 'lucide-react';
 import { NewDepositModal } from '@/components/dashboard/NewDepositModal';
 import { TransactionsList } from '@/components/dashboard/TransactionsList';
 import { InvestmentPlans } from '@/components/dashboard/InvestmentPlans';
 import { ActiveInvestmentCard } from '@/components/dashboard/ActiveInvestmentCard';
 import { ProfileSection, PasswordChangeSection } from '@/components/profile/ProfileSection';
+import { ReferralSection } from '@/components/dashboard/ReferralSection';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useActiveInvestments } from '@/hooks/useActiveInvestments';
 import { InvestmentPlan } from '@/hooks/useInvestmentPlans';
@@ -329,6 +331,10 @@ export default function Dashboard() {
               <User className="h-4 w-4" />
               Profile
             </TabsTrigger>
+            <TabsTrigger value="referrals" className="gap-2">
+              <Users className="h-4 w-4" />
+              Referrals
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -491,6 +497,10 @@ export default function Dashboard() {
               <ProfileSection balance={currentBalance} />
               <PasswordChangeSection />
             </div>
+          </TabsContent>
+
+          <TabsContent value="referrals">
+            <ReferralSection />
           </TabsContent>
         </Tabs>
       </main>

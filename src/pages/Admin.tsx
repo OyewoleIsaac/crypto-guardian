@@ -15,7 +15,8 @@ import {
   RefreshCw,
   DollarSign,
   TrendingUp,
-  ArrowUpDown
+  ArrowUpDown,
+  Link
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { PendingDeposits } from '@/components/admin/PendingDeposits';
@@ -23,6 +24,7 @@ import { UserManagement } from '@/components/admin/UserManagement';
 import { AdminStats } from '@/components/admin/AdminStats';
 import { PlanManagement } from '@/components/admin/PlanManagement';
 import { PaymentMethodsManagement } from '@/components/admin/PaymentMethodsManagement';
+import { ReferralManagement } from '@/components/admin/ReferralManagement';
 import { ProfileSection, PasswordChangeSection } from '@/components/profile/ProfileSection';
 
 export default function Admin() {
@@ -68,7 +70,7 @@ export default function Admin() {
 
         {/* Tabs */}
         <Tabs defaultValue="deposits" className="mt-8">
-          <TabsList className="grid w-full max-w-4xl grid-cols-5">
+          <TabsList className="grid w-full max-w-5xl grid-cols-6">
             <TabsTrigger value="deposits" className="gap-2">
               <Clock className="h-4 w-4" />
               Deposits
@@ -84,6 +86,10 @@ export default function Admin() {
             <TabsTrigger value="payments" className="gap-2">
               <DollarSign className="h-4 w-4" />
               Payments
+            </TabsTrigger>
+            <TabsTrigger value="referrals" className="gap-2">
+              <Link className="h-4 w-4" />
+              Referrals
             </TabsTrigger>
             <TabsTrigger value="profile" className="gap-2">
               <Users className="h-4 w-4" />
@@ -105,6 +111,10 @@ export default function Admin() {
 
           <TabsContent value="payments" className="mt-6">
             <PaymentMethodsManagement />
+          </TabsContent>
+
+          <TabsContent value="referrals" className="mt-6">
+            <ReferralManagement />
           </TabsContent>
 
           <TabsContent value="profile" className="mt-6">
