@@ -7,11 +7,13 @@ import { Label } from '@/components/ui/label';
 import { TrendingUp, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { z } from 'zod';
+import { processReferralCode } from '@/hooks/useReferrals';
 
 const signUpSchema = z.object({
   fullName: z.string().trim().min(2, 'Name must be at least 2 characters').max(100, 'Name is too long'),
   email: z.string().trim().email('Invalid email address').max(255, 'Email is too long'),
   password: z.string().min(6, 'Password must be at least 6 characters').max(72, 'Password is too long'),
+  referralCode: z.string().max(20, 'Invalid referral code').optional(),
 });
 
 const signInSchema = z.object({
@@ -28,6 +30,7 @@ export default function Auth() {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [referralCode, setReferralCode] = useState(searchParams.get('ref') || '');
   
   const { signIn, signUp, user, isAdmin } = useAuth();
   const navigate = useNavigate();
@@ -49,14 +52,14 @@ export default function Auth() {
 
     try {
       if (isSignUp) {
-        const result = signUpSchema.safeParse({ fullName, email, password });
+        const result = signUpSchema.safeParse({ fullName, email, password, referralCode: referralCode || undefined });
         if (!result.success) {
           toast.error(result.error.issues[0].message);
           setIsLoading(false);
           return;
         }
 
-        const { error } = await signUp(email, password, fullName);
+        const { error, data } = await signUp(email, password, fullName);
         if (error) {
           if (error.message.includes('already registered')) {
             toast.error('This email is already registered. Please sign in instead.');
@@ -64,6 +67,13 @@ export default function Auth() {
             toast.error(error.message);
           }
         } else {
+          // Process referral code if provided
+          if (referralCode && data?.user?.id) {
+            const refResult = await processReferralCode(referralCode, data.user.id);
+            if (!refResult.success && refResult.error) {
+              toast.warning(refResult.error);
+            }
+          }
           toast.success('Account created successfully! Welcome to CryptoVest.');
           // New signups are always regular users, redirect to dashboard
           navigate('/dashboard');
@@ -179,6 +189,21 @@ export default function Auth() {
                 </button>
               </div>
             </div>
+
+            {isSignUp && (
+              <div className="space-y-2">
+                <Label htmlFor="referralCode">Referral Code (Optional)</Label>
+                <Input
+                  id="referralCode"
+                  type="text"
+                  placeholder="Enter referral code"
+                  value={referralCode}
+                  onChange={(e) => setReferralCode(e.target.value.toUpperCase())}
+                  className="h-12 font-mono tracking-wider"
+                  maxLength={20}
+                />
+              </div>
+            )}
 
             {!isSignUp && (
               <div className="text-right">
