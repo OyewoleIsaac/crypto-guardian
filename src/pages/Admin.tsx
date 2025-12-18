@@ -18,7 +18,7 @@ import {
   ArrowUpDown,
   Link
 } from 'lucide-react';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ResponsiveTabs, TabsContent } from '@/components/ui/responsive-tabs';
 import { PendingDeposits } from '@/components/admin/PendingDeposits';
 import { UserManagement } from '@/components/admin/UserManagement';
 import { AdminStats } from '@/components/admin/AdminStats';
@@ -69,33 +69,18 @@ export default function Admin() {
         <AdminStats />
 
         {/* Tabs */}
-        <Tabs defaultValue="deposits" className="mt-8">
-          <TabsList className="grid w-full max-w-5xl grid-cols-6">
-            <TabsTrigger value="deposits" className="gap-2">
-              <Clock className="h-4 w-4" />
-              Deposits
-            </TabsTrigger>
-            <TabsTrigger value="users" className="gap-2">
-              <Users className="h-4 w-4" />
-              Users
-            </TabsTrigger>
-            <TabsTrigger value="plans" className="gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Plans
-            </TabsTrigger>
-            <TabsTrigger value="payments" className="gap-2">
-              <DollarSign className="h-4 w-4" />
-              Payments
-            </TabsTrigger>
-            <TabsTrigger value="referrals" className="gap-2">
-              <Link className="h-4 w-4" />
-              Referrals
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="gap-2">
-              <Users className="h-4 w-4" />
-              Profile
-            </TabsTrigger>
-          </TabsList>
+        <ResponsiveTabs
+          defaultValue="deposits"
+          className="mt-8"
+          tabs={[
+            { value: "deposits", label: "Deposits", icon: <Clock className="h-4 w-4" /> },
+            { value: "users", label: "Users", icon: <Users className="h-4 w-4" /> },
+            { value: "plans", label: "Plans", icon: <TrendingUp className="h-4 w-4" /> },
+            { value: "payments", label: "Payments", icon: <DollarSign className="h-4 w-4" /> },
+            { value: "referrals", label: "Referrals", icon: <Link className="h-4 w-4" /> },
+            { value: "profile", label: "Profile", icon: <Users className="h-4 w-4" /> },
+          ]}
+        >
 
           <TabsContent value="deposits" className="mt-6">
             <PendingDeposits />
@@ -123,7 +108,7 @@ export default function Admin() {
               <PasswordChangeSection />
             </div>
           </TabsContent>
-        </Tabs>
+        </ResponsiveTabs>
       </main>
     </div>
   );

@@ -27,7 +27,7 @@ import { InvestmentPlans } from '@/components/dashboard/InvestmentPlans';
 import { ActiveInvestmentCard } from '@/components/dashboard/ActiveInvestmentCard';
 import { ProfileSection, PasswordChangeSection } from '@/components/profile/ProfileSection';
 import { ReferralSection } from '@/components/dashboard/ReferralSection';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { ResponsiveTabs, TabsContent } from '@/components/ui/responsive-tabs';
 import { useActiveInvestments } from '@/hooks/useActiveInvestments';
 import { InvestmentPlan } from '@/hooks/useInvestmentPlans';
 
@@ -309,33 +309,17 @@ export default function Dashboard() {
         </div>
 
         {/* Tabs Content */}
-        <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="bg-muted/50 p-1">
-            <TabsTrigger value="overview" className="gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="investments" className="gap-2">
-              <Briefcase className="h-4 w-4" />
-              My Investments
-            </TabsTrigger>
-            <TabsTrigger value="plans" className="gap-2">
-              <Crown className="h-4 w-4" />
-              Investment Plans
-            </TabsTrigger>
-            <TabsTrigger value="history" className="gap-2">
-              <Calendar className="h-4 w-4" />
-              History
-            </TabsTrigger>
-            <TabsTrigger value="profile" className="gap-2">
-              <User className="h-4 w-4" />
-              Profile
-            </TabsTrigger>
-            <TabsTrigger value="referrals" className="gap-2">
-              <Users className="h-4 w-4" />
-              Referrals
-            </TabsTrigger>
-          </TabsList>
+        <ResponsiveTabs
+          defaultValue="overview"
+          tabs={[
+            { value: "overview", label: "Overview", icon: <BarChart3 className="h-4 w-4" /> },
+            { value: "investments", label: "My Investments", icon: <Briefcase className="h-4 w-4" /> },
+            { value: "plans", label: "Investment Plans", icon: <Crown className="h-4 w-4" /> },
+            { value: "history", label: "History", icon: <Calendar className="h-4 w-4" /> },
+            { value: "profile", label: "Profile", icon: <User className="h-4 w-4" /> },
+            { value: "referrals", label: "Referrals", icon: <Users className="h-4 w-4" /> },
+          ]}
+        >
 
           <TabsContent value="overview" className="space-y-6">
             {/* Quick Stats */}
@@ -502,7 +486,7 @@ export default function Dashboard() {
           <TabsContent value="referrals">
             <ReferralSection />
           </TabsContent>
-        </Tabs>
+        </ResponsiveTabs>
       </main>
 
       <NewDepositModal 
