@@ -19,7 +19,8 @@ import {
   Calendar,
   User,
   Briefcase,
-  Users
+  Users,
+  ArrowDownToLine
 } from 'lucide-react';
 import { NewDepositModal } from '@/components/dashboard/NewDepositModal';
 import { TransactionsList } from '@/components/dashboard/TransactionsList';
@@ -27,6 +28,7 @@ import { InvestmentPlans } from '@/components/dashboard/InvestmentPlans';
 import { ActiveInvestmentCard } from '@/components/dashboard/ActiveInvestmentCard';
 import { ProfileSection, PasswordChangeSection } from '@/components/profile/ProfileSection';
 import { ReferralSection } from '@/components/dashboard/ReferralSection';
+import { WithdrawalSection } from '@/components/dashboard/WithdrawalSection';
 import { ResponsiveTabs, TabsContent } from '@/components/ui/responsive-tabs';
 import { useActiveInvestments } from '@/hooks/useActiveInvestments';
 import { InvestmentPlan } from '@/hooks/useInvestmentPlans';
@@ -315,6 +317,7 @@ export default function Dashboard() {
             { value: "overview", label: "Overview", icon: <BarChart3 className="h-4 w-4" /> },
             { value: "investments", label: "My Investments", icon: <Briefcase className="h-4 w-4" /> },
             { value: "plans", label: "Investment Plans", icon: <Crown className="h-4 w-4" /> },
+            { value: "withdrawals", label: "Withdrawals", icon: <ArrowDownToLine className="h-4 w-4" /> },
             { value: "history", label: "History", icon: <Calendar className="h-4 w-4" /> },
             { value: "profile", label: "Profile", icon: <User className="h-4 w-4" /> },
             { value: "referrals", label: "Referrals", icon: <Users className="h-4 w-4" /> },
@@ -449,6 +452,20 @@ export default function Dashboard() {
                 onSelectPlan={handleSelectPlan}
                 onDepositSuccess={fetchData}
               />
+            </div>
+          </TabsContent>
+
+          <TabsContent value="withdrawals">
+            <div className="rounded-2xl bg-card border border-border p-6">
+              <div className="mb-6">
+                <h2 className="font-display text-xl font-semibold text-foreground mb-2">
+                  Withdrawals
+                </h2>
+                <p className="text-muted-foreground">
+                  Request withdrawals from your available balance.
+                </p>
+              </div>
+              <WithdrawalSection />
             </div>
           </TabsContent>
 

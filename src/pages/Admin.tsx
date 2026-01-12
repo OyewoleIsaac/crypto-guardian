@@ -16,7 +16,8 @@ import {
   DollarSign,
   TrendingUp,
   ArrowUpDown,
-  Link
+  Link,
+  ArrowDownToLine
 } from 'lucide-react';
 import { ResponsiveTabs, TabsContent } from '@/components/ui/responsive-tabs';
 import { PendingDeposits } from '@/components/admin/PendingDeposits';
@@ -25,6 +26,7 @@ import { AdminStats } from '@/components/admin/AdminStats';
 import { PlanManagement } from '@/components/admin/PlanManagement';
 import { PaymentMethodsManagement } from '@/components/admin/PaymentMethodsManagement';
 import { ReferralManagement } from '@/components/admin/ReferralManagement';
+import { WithdrawalManagement } from '@/components/admin/WithdrawalManagement';
 import { ProfileSection, PasswordChangeSection } from '@/components/profile/ProfileSection';
 
 export default function Admin() {
@@ -74,6 +76,7 @@ export default function Admin() {
           className="mt-8"
           tabs={[
             { value: "deposits", label: "Deposits", icon: <Clock className="h-4 w-4" /> },
+            { value: "withdrawals", label: "Withdrawals", icon: <ArrowDownToLine className="h-4 w-4" /> },
             { value: "users", label: "Users", icon: <Users className="h-4 w-4" /> },
             { value: "plans", label: "Plans", icon: <TrendingUp className="h-4 w-4" /> },
             { value: "payments", label: "Payments", icon: <DollarSign className="h-4 w-4" /> },
@@ -84,6 +87,10 @@ export default function Admin() {
 
           <TabsContent value="deposits" className="mt-6">
             <PendingDeposits />
+          </TabsContent>
+
+          <TabsContent value="withdrawals" className="mt-6">
+            <WithdrawalManagement />
           </TabsContent>
 
           <TabsContent value="users" className="mt-6">
