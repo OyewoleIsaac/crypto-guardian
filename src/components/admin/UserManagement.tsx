@@ -25,6 +25,13 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createNotification, logAuditEvent } from '@/hooks/useNotifications';
+import { 
+  parseFinancialAmount, 
+  validateFinancialInput, 
+  safeAddAmounts, 
+  safeSubtractAmounts,
+  MAX_FINANCIAL_AMOUNT 
+} from '@/lib/financial-validation';
 
 interface UserWithInvestment {
   id: string;
@@ -107,18 +114,27 @@ export function UserManagement() {
   const handleAdjustBalance = async () => {
     if (!selectedUser || !user || !adjustAmount) return;
     
-    const amount = parseFloat(adjustAmount);
-    if (isNaN(amount) || amount <= 0) {
-      toast.error('Please enter a valid amount');
+    // Validate amount using financial validation
+    const validationError = validateFinancialInput(adjustAmount);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    
+    const amount = parseFinancialAmount(adjustAmount);
+    if (amount === null) {
+      toast.error('Invalid amount format');
       return;
     }
 
     setProcessing(true);
     try {
       const currentBalance = selectedUser.investment?.balance || 0;
+      
+      // Use safe arithmetic to prevent precision errors
       const newBalance = adjustType === 'add' 
-        ? currentBalance + amount 
-        : Math.max(0, currentBalance - amount);
+        ? safeAddAmounts(currentBalance, amount) 
+        : safeSubtractAmounts(currentBalance, amount);
 
       const { error: updateError } = await supabase
         .from('investments')

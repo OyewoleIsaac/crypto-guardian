@@ -26,6 +26,7 @@ import {
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createNotification } from '@/hooks/useNotifications';
+import { safeAddAmounts, isSafeFinancialNumber } from '@/lib/financial-validation';
 
 interface Deposit {
   id: string;
@@ -155,7 +156,14 @@ export function PendingDeposits() {
       if (fetchError) throw fetchError;
 
       const depositAmount = selectedDeposit.usd_amount || selectedDeposit.amount;
-      const newBalance = Number(currentInvestment.balance) + Number(depositAmount);
+      
+      // Validate amounts before calculation
+      if (!isSafeFinancialNumber(Number(currentInvestment.balance)) || !isSafeFinancialNumber(Number(depositAmount))) {
+        throw new Error('Invalid financial amounts detected');
+      }
+      
+      // Use safe arithmetic to prevent precision errors
+      const newBalance = safeAddAmounts(Number(currentInvestment.balance), Number(depositAmount));
 
       const { error: updateError } = await supabase
         .from('investments')
