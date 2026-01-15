@@ -120,7 +120,15 @@ export function useNotifications() {
   };
 }
 
-// Helper function to create notifications (use on server-side or with admin privileges)
+// DEPRECATED: Notifications and audit logs are now created automatically via database triggers
+// These functions are kept for backwards compatibility but will be removed in a future update
+// The database triggers (on_deposit_status_change, on_withdrawal_status_change, etc.) now handle
+// automatic notification and audit log creation when deposit/withdrawal status changes occur.
+
+/**
+ * @deprecated Use database triggers instead. This function is kept for admin-only use cases
+ * where direct notification insertion is needed and the user has admin role.
+ */
 export async function createNotification(
   userId: string,
   title: string,
@@ -128,6 +136,7 @@ export async function createNotification(
   type: string = 'info',
   metadata: Record<string, unknown> = {}
 ) {
+  // Note: This will only work for users with admin role due to RLS policies
   const { error } = await supabase.from('notifications').insert([{
     user_id: userId,
     title,
@@ -137,18 +146,22 @@ export async function createNotification(
   }]);
 
   if (error) {
-    console.error('Error creating notification:', error);
-    throw error;
+    // Log error but don't throw - notifications are now primarily trigger-based
+    console.warn('Direct notification insert failed (may require admin role):', error);
   }
 }
 
-// Helper function to log audit events
+/**
+ * @deprecated Use database triggers instead. Audit logs are now created automatically
+ * via database triggers when significant actions occur.
+ */
 export async function logAuditEvent(
   userId: string,
   action: string,
   details: Record<string, unknown> = {},
   performedBy?: string
 ) {
+  // Note: This will work for the user's own actions or for admins due to RLS policies
   const { error } = await supabase.from('audit_logs').insert([{
     user_id: userId,
     action,
@@ -157,6 +170,7 @@ export async function logAuditEvent(
   }]);
 
   if (error) {
-    console.error('Error logging audit event:', error);
+    // Log error but don't throw - audit logs are now primarily trigger-based
+    console.warn('Direct audit log insert failed:', error);
   }
 }

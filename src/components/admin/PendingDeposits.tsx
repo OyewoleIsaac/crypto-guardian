@@ -25,7 +25,7 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { createNotification, logAuditEvent } from '@/hooks/useNotifications';
+import { createNotification } from '@/hooks/useNotifications';
 
 interface Deposit {
   id: string;
@@ -229,7 +229,7 @@ export function PendingDeposits() {
 
         if (investTxError) throw investTxError;
 
-        // Notify user about investment activation
+        // Create investment notification via admin insert (RLS allows admins)
         await createNotification(
           selectedDeposit.user_id,
           'Investment Activated',
@@ -239,28 +239,11 @@ export function PendingDeposits() {
 
         toast.success(`Deposit confirmed and ${plan.name} Plan activated!`);
       } else {
-        // Notify user about deposit approval
-        await createNotification(
-          selectedDeposit.user_id,
-          'Deposit Approved',
-          `Your deposit of $${depositAmount.toFixed(2)} has been confirmed and added to your balance.`,
-          'deposit'
-        );
+        // Deposit notification is now handled by database trigger (on_deposit_status_change)
         toast.success('Deposit confirmed successfully');
       }
 
-      // Log audit event
-      await logAuditEvent(
-        selectedDeposit.user_id,
-        'deposit_confirmed',
-        {
-          deposit_id: selectedDeposit.id,
-          amount: depositAmount,
-          crypto_type: selectedDeposit.crypto_type,
-          plan_activated: selectedDeposit.investment_plan?.name,
-        },
-        user.id
-      );
+      // Audit log is now handled by database trigger (on_deposit_audit)
 
       setConfirmDialogOpen(false);
       setSelectedDeposit(null);
@@ -291,26 +274,8 @@ export function PendingDeposits() {
 
       if (error) throw error;
 
-      // Notify user about rejection
-      await createNotification(
-        selectedDeposit.user_id,
-        'Deposit Rejected',
-        `Your deposit of ${selectedDeposit.crypto_amount} ${selectedDeposit.crypto_type} has been rejected. ${adminNotes ? `Reason: ${adminNotes}` : 'Please contact support for more information.'}`,
-        'deposit'
-      );
-
-      // Log audit event
-      await logAuditEvent(
-        selectedDeposit.user_id,
-        'deposit_rejected',
-        {
-          deposit_id: selectedDeposit.id,
-          crypto_type: selectedDeposit.crypto_type,
-          amount: selectedDeposit.crypto_amount,
-          reason: adminNotes,
-        },
-        user.id
-      );
+      // Notification and audit log are now handled by database triggers
+      // (on_deposit_status_change and on_deposit_audit)
 
       toast.success('Deposit rejected');
       setRejectDialogOpen(false);

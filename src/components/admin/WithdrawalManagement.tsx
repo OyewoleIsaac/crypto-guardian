@@ -152,27 +152,8 @@ export function WithdrawalManagement() {
         if (txError) throw txError;
       }
 
-      // Create notification for user
-      await supabase.from('notifications').insert({
-        user_id: selectedWithdrawal.user_id,
-        title: action === 'approved' ? 'Withdrawal Approved' : 'Withdrawal Rejected',
-        message: action === 'approved'
-          ? `Your withdrawal of $${selectedWithdrawal.amount.toFixed(2)} has been approved and is being processed.`
-          : `Your withdrawal request of $${selectedWithdrawal.amount.toFixed(2)} has been rejected. ${adminNotes ? `Reason: ${adminNotes}` : ''}`,
-        type: action === 'approved' ? 'success' : 'error',
-      });
-
-      // Log audit event
-      await supabase.from('audit_logs').insert({
-        user_id: selectedWithdrawal.user_id,
-        action: `withdrawal_${action}`,
-        performed_by: user.id,
-        details: { 
-          withdrawal_id: selectedWithdrawal.id,
-          amount: selectedWithdrawal.amount,
-          admin_notes: adminNotes,
-        },
-      });
+      // Notification and audit log are now handled by database triggers
+      // (on_withdrawal_status_change and on_withdrawal_audit)
 
       toast.success(`Withdrawal ${action} successfully`);
       setSelectedWithdrawal(null);
