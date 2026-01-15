@@ -103,13 +103,13 @@ export function ProfileSection({ balance = 0, showBalance = true }: ProfileSecti
       const fileName = `${user.id}/avatar.${fileExt}`;
 
       const { error: uploadError } = await supabase.storage
-        .from('deposit-proofs')
+        .from('avatars')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
       const { data: { publicUrl } } = supabase.storage
-        .from('deposit-proofs')
+        .from('avatars')
         .getPublicUrl(fileName);
 
       const { error: updateError } = await supabase
