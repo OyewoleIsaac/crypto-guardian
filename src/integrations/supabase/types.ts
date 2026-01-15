@@ -477,6 +477,25 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_system_audit_log: {
+        Args: {
+          p_action: string
+          p_details?: Json
+          p_performed_by?: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      create_system_notification: {
+        Args: {
+          p_message: string
+          p_metadata?: Json
+          p_title: string
+          p_type?: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

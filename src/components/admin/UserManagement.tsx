@@ -139,7 +139,7 @@ export function UserManagement() {
 
       if (txError) throw txError;
 
-      // Create notification for user
+      // Create notification for user (admin has permission via RLS)
       await createNotification(
         selectedUser.user_id,
         adjustType === 'add' ? 'Balance Credited' : 'Balance Debited',
@@ -147,7 +147,7 @@ export function UserManagement() {
         'balance'
       );
 
-      // Log audit event
+      // Log audit event (admin has permission via RLS)
       await logAuditEvent(
         selectedUser.user_id,
         'balance_adjustment',
