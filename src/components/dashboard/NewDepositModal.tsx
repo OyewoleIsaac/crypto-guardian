@@ -10,6 +10,12 @@ import { useInvestmentPlans } from '@/hooks/useInvestmentPlans';
 import { useCryptoPrices } from '@/hooks/useCryptoPrices';
 import { toast } from 'sonner';
 import { Copy, Check, Upload, X, ArrowRight, RefreshCw, AlertCircle } from 'lucide-react';
+import { 
+  parseFinancialAmount, 
+  parseCryptoAmount, 
+  validateFinancialInput,
+  MAX_FINANCIAL_AMOUNT 
+} from '@/lib/financial-validation';
 
 interface NewDepositModalProps {
   open: boolean;
@@ -65,25 +71,37 @@ export function NewDepositModal({
   const minRequired = selectedPlanDetails?.min_investment || 0;
   const amountNeeded = Math.max(0, minRequired - currentBalance);
 
-  // Handle USD amount change
+  // Handle USD amount change with validation
   const handleUsdChange = (value: string) => {
-    setUsdAmount(value);
-    if (value && selectedMethod) {
-      const crypto = convertUsdToCrypto(parseFloat(value), selectedMethod);
-      setCryptoAmount(crypto > 0 ? crypto.toFixed(8) : '');
-    } else {
-      setCryptoAmount('');
+    // Allow empty or valid numeric input
+    if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+      setUsdAmount(value);
+      if (value && selectedMethod) {
+        const parsed = parseFinancialAmount(value);
+        if (parsed !== null) {
+          const crypto = convertUsdToCrypto(parsed, selectedMethod);
+          setCryptoAmount(crypto > 0 ? crypto.toFixed(8) : '');
+        }
+      } else {
+        setCryptoAmount('');
+      }
     }
   };
 
-  // Handle crypto amount change
+  // Handle crypto amount change with validation
   const handleCryptoChange = (value: string) => {
-    setCryptoAmount(value);
-    if (value && selectedMethod) {
-      const usd = convertCryptoToUsd(parseFloat(value), selectedMethod);
-      setUsdAmount(usd > 0 ? usd.toFixed(2) : '');
-    } else {
-      setUsdAmount('');
+    // Allow empty or valid crypto format (up to 8 decimals)
+    if (value === '' || /^\d*\.?\d{0,8}$/.test(value)) {
+      setCryptoAmount(value);
+      if (value && selectedMethod) {
+        const parsed = parseCryptoAmount(value);
+        if (parsed !== null) {
+          const usd = convertCryptoToUsd(parsed, selectedMethod);
+          setUsdAmount(usd > 0 ? usd.toFixed(2) : '');
+        }
+      } else {
+        setUsdAmount('');
+      }
     }
   };
 
@@ -126,8 +144,23 @@ export function NewDepositModal({
   };
 
   const handleSubmit = async () => {
-    if (!usdAmount || parseFloat(usdAmount) <= 0) {
-      toast.error('Please enter a valid amount');
+    // Validate USD amount using financial validation
+    const validationError = validateFinancialInput(usdAmount);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    
+    const parsedUsdAmount = parseFinancialAmount(usdAmount);
+    const parsedCryptoAmount = parseCryptoAmount(cryptoAmount);
+    
+    if (parsedUsdAmount === null) {
+      toast.error('Invalid USD amount');
+      return;
+    }
+    
+    if (parsedCryptoAmount === null) {
+      toast.error('Invalid crypto amount');
       return;
     }
 
@@ -157,13 +190,13 @@ export function NewDepositModal({
         .from('deposit-proofs')
         .getPublicUrl(fileName);
 
-      // Create deposit record
+      // Create deposit record with validated amounts
       const { error } = await supabase.from('deposits').insert({
         user_id: user?.id,
-        amount: parseFloat(usdAmount),
-        usd_amount: parseFloat(usdAmount),
+        amount: parsedUsdAmount,
+        usd_amount: parsedUsdAmount,
         crypto_type: selectedMethod,
-        crypto_amount: parseFloat(cryptoAmount),
+        crypto_amount: parsedCryptoAmount,
         conversion_rate: prices[selectedMethod] || 0,
         wallet_address: selectedPaymentMethod.wallet_address,
         status: 'pending',

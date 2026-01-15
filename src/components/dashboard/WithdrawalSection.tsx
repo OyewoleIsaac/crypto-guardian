@@ -36,6 +36,7 @@ import {
 import { useWithdrawals, WithdrawalEligibility } from '@/hooks/useWithdrawals';
 import { usePaymentMethods } from '@/hooks/usePaymentMethods';
 import { format } from 'date-fns';
+import { parseFinancialAmount, validateFinancialInput, MAX_FINANCIAL_AMOUNT } from '@/lib/financial-validation';
 
 export function WithdrawalSection() {
   const { 
@@ -74,9 +75,22 @@ export function WithdrawalSection() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    const numAmount = parseFloat(amount);
-    if (isNaN(numAmount) || numAmount <= 0) {
-      toast.error('Please enter a valid amount');
+    // Validate amount using financial validation
+    const validationError = validateFinancialInput(amount);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    
+    const numAmount = parseFinancialAmount(amount);
+    if (numAmount === null) {
+      toast.error('Invalid amount format');
+      return;
+    }
+    
+    // Check against available balance
+    if (eligibility?.availableBalance && numAmount > eligibility.availableBalance) {
+      toast.error(`Amount exceeds available balance of $${eligibility.availableBalance.toFixed(2)}`);
       return;
     }
 
