@@ -4,7 +4,7 @@ import { ArrowRight, Shield, TrendingUp, Zap } from 'lucide-react';
 
 export function Hero() {
   return (
-    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20">
+    <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-20 pb-32">
       {/* Background Elements */}
       <div className="absolute inset-0 bg-gradient-hero" />
       <div className="absolute inset-0 opacity-20">
@@ -12,7 +12,7 @@ export function Hero() {
         <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-accent/30 rounded-full blur-[100px] animate-pulse-slow" style={{ animationDelay: '1s' }} />
         <div className="absolute top-1/2 right-1/3 w-[300px] h-[300px] bg-cyan-500/20 rounded-full blur-[80px] animate-pulse-slow" style={{ animationDelay: '2s' }} />
       </div>
-      
+
       {/* Grid Pattern */}
       <div className="absolute inset-0 opacity-5" style={{
         backgroundImage: 'linear-gradient(hsl(0 0% 100% / 0.1) 1px, transparent 1px), linear-gradient(90deg, hsl(0 0% 100% / 0.1) 1px, transparent 1px)',
@@ -37,7 +37,7 @@ export function Hero() {
 
           {/* Subheading */}
           <p className="text-lg md:text-xl text-primary-foreground/80 max-w-2xl mx-auto mb-10 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-            Join thousands of investors growing their wealth with our secure cryptocurrency 
+            Join thousands of investors growing their wealth with our secure cryptocurrency
             investment platform. Professional management, transparent tracking, maximum returns.
           </p>
 
@@ -50,7 +50,7 @@ export function Hero() {
               </Button>
             </Link>
             <Link to="/auth">
-              <Button variant="glass" size="xl" className="w-full sm:w-auto border-primary-foreground/30 text-primary-foreground hover:bg-primary-foreground/10">
+              <Button variant="glass" size="xl" className="w-full sm:w-auto border-primary-foreground/30 hover:bg-primary-foreground/10">
                 Sign In to Dashboard
               </Button>
             </Link>
@@ -67,7 +67,7 @@ export function Hero() {
                 <p className="text-sm opacity-70">256-bit encryption</p>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-center gap-3 text-primary-foreground/80">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-foreground/10 border border-primary-foreground/20">
                 <TrendingUp className="h-6 w-6" />
@@ -77,7 +77,7 @@ export function Hero() {
                 <p className="text-sm opacity-70">Expert-managed portfolio</p>
               </div>
             </div>
-            
+
             <div className="flex items-center justify-center gap-3 text-primary-foreground/80">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-foreground/10 border border-primary-foreground/20">
                 <Zap className="h-6 w-6" />
