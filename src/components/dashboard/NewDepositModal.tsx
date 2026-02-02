@@ -352,6 +352,9 @@ export function NewDepositModal({
                         {method.crypto_type.charAt(0)}
                       </div>
                       <p className="text-sm font-medium">{method.crypto_type}</p>
+                      {method.network && (
+                        <p className="text-xs text-muted-foreground mt-1">{method.network}</p>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -431,13 +434,26 @@ export function NewDepositModal({
 
               {/* Wallet Address */}
               <div className="space-y-2">
-                <Label>Send {selectedMethod} to this address</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Send {selectedMethod} to this address</Label>
+                  {selectedPaymentMethod.network && (
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-warning/10 text-warning">
+                      Network: {selectedPaymentMethod.network}
+                    </span>
+                  )}
+                </div>
                 <div className="flex items-center gap-2 p-3 rounded-lg bg-muted border border-border">
                   <code className="flex-1 text-sm break-all">{selectedPaymentMethod.wallet_address}</code>
                   <Button variant="ghost" size="icon" onClick={copyAddress}>
                     {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
                   </Button>
                 </div>
+                {selectedPaymentMethod.network && (
+                  <p className="text-xs text-warning flex items-center gap-1">
+                    <AlertCircle className="h-3 w-3" />
+                    Make sure to send using the {selectedPaymentMethod.network} network only!
+                  </p>
+                )}
               </div>
 
               {/* Proof Image Upload */}

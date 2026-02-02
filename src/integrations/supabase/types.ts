@@ -294,6 +294,7 @@ export type Database = {
           icon_class: string | null
           id: string
           is_enabled: boolean
+          network: string | null
           updated_at: string
           wallet_address: string
         }
@@ -304,6 +305,7 @@ export type Database = {
           icon_class?: string | null
           id?: string
           is_enabled?: boolean
+          network?: string | null
           updated_at?: string
           wallet_address: string
         }
@@ -314,6 +316,7 @@ export type Database = {
           icon_class?: string | null
           id?: string
           is_enabled?: boolean
+          network?: string | null
           updated_at?: string
           wallet_address?: string
         }
