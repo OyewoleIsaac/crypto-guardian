@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { NewDepositModal } from '@/components/dashboard/NewDepositModal';
 import { TransactionsList } from '@/components/dashboard/TransactionsList';
+import { TransactionHistory } from '@/components/dashboard/TransactionHistory';
 import { InvestmentPlans } from '@/components/dashboard/InvestmentPlans';
 import { ActiveInvestmentCard } from '@/components/dashboard/ActiveInvestmentCard';
 import { ProfileSection, PasswordChangeSection } from '@/components/profile/ProfileSection';
@@ -276,10 +277,17 @@ export default function Dashboard() {
             <div className="absolute -top-8 -right-16 w-40 h-40 rounded-full bg-primary-foreground/5" />
           </div>
 
-          {/* Active Investments */}
-          <div className="rounded-2xl bg-card border border-border p-6 hover:shadow-lg transition-shadow">
+          {/* Active Investments - Click to navigate */}
+          <button 
+            onClick={() => {
+              // Find the tabs and switch to investments tab
+              const tabsTrigger = document.querySelector('[data-state][value="investments"]') as HTMLElement;
+              if (tabsTrigger) tabsTrigger.click();
+            }}
+            className="rounded-2xl bg-card border border-border p-6 hover:shadow-lg hover:border-primary/50 transition-all text-left group cursor-pointer"
+          >
             <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10 group-hover:bg-success/20 transition-colors">
                 <Briefcase className="h-6 w-6 text-success" />
               </div>
               <span className="text-muted-foreground font-medium">Active Investments</span>
@@ -287,11 +295,16 @@ export default function Dashboard() {
             <p className="font-display text-2xl font-bold text-foreground mb-1">
               ${totalActiveInvestment.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </p>
-            <div className="flex items-center gap-2 text-success text-sm">
-              <ArrowUpRight className="h-4 w-4" />
-              <span>{activeInvestments.length} active plan{activeInvestments.length !== 1 ? 's' : ''}</span>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-success text-sm">
+                <ArrowUpRight className="h-4 w-4" />
+                <span>{activeInvestments.length} active plan{activeInvestments.length !== 1 ? 's' : ''}</span>
+              </div>
+              <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                Click to view →
+              </span>
             </div>
-          </div>
+          </button>
 
           {/* Pending Deposits */}
           <div className="rounded-2xl bg-card border border-border p-6 hover:shadow-lg transition-shadow">
@@ -325,6 +338,38 @@ export default function Dashboard() {
         >
 
           <TabsContent value="overview" className="space-y-6">
+            {/* Active Investment Summary (if any) */}
+            {activeInvestments.length > 0 && (
+              <div className="rounded-2xl bg-gradient-to-r from-success/10 to-primary/10 border border-success/20 p-6">
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-display text-lg font-semibold text-foreground mb-1">
+                      Active Investments
+                    </h3>
+                    <p className="text-muted-foreground text-sm">
+                      You have ${totalActiveInvestment.toLocaleString()} invested across {activeInvestments.length} plan{activeInvestments.length !== 1 ? 's' : ''}
+                    </p>
+                    {totalClaimableRoi > 0 && (
+                      <p className="text-success font-medium mt-1">
+                        ${totalClaimableRoi.toFixed(2)} ROI available to claim!
+                      </p>
+                    )}
+                  </div>
+                  <Button 
+                    variant="success" 
+                    className="gap-2"
+                    onClick={() => {
+                      const tabsTrigger = document.querySelector('[data-state][value="investments"]') as HTMLElement;
+                      if (tabsTrigger) tabsTrigger.click();
+                    }}
+                  >
+                    <Briefcase className="h-4 w-4" />
+                    View Investments
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* Quick Stats */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="rounded-xl bg-card border border-border p-4">
@@ -471,25 +516,16 @@ export default function Dashboard() {
 
           <TabsContent value="history">
             <div className="rounded-2xl bg-card border border-border p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="font-display text-xl font-semibold text-foreground">
-                  Transaction History
+              <div className="mb-6">
+                <h2 className="font-display text-xl font-semibold text-foreground mb-2">
+                  Activity History
                 </h2>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={fetchData}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh
-                </Button>
+                <p className="text-muted-foreground">
+                  Complete record of all your deposits, withdrawals, investments and ROI claims.
+                </p>
               </div>
               
-              <TransactionsList 
-                transactions={transactions} 
-                isLoading={isLoading} 
-              />
+              <TransactionHistory />
             </div>
           </TabsContent>
 

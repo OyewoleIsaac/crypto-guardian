@@ -8,6 +8,7 @@ export interface PaymentMethod {
   wallet_address: string;
   is_enabled: boolean;
   icon_class: string | null;
+  network: string | null;
 }
 
 export function usePaymentMethods() {

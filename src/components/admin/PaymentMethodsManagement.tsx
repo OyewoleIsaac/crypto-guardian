@@ -14,11 +14,11 @@ export function PaymentMethodsManagement() {
   const [editMethod, setEditMethod] = useState<PaymentMethod | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [formData, setFormData] = useState({ wallet_address: '', is_enabled: true });
+  const [formData, setFormData] = useState({ wallet_address: '', is_enabled: true, network: '' });
 
   const openEditDialog = (method: PaymentMethod) => {
     setEditMethod(method);
-    setFormData({ wallet_address: method.wallet_address, is_enabled: method.is_enabled });
+    setFormData({ wallet_address: method.wallet_address, is_enabled: method.is_enabled, network: method.network || '' });
     setIsDialogOpen(true);
   };
 
@@ -45,8 +45,13 @@ export function PaymentMethodsManagement() {
         {methods.map((method) => (
           <div key={method.id} className="flex items-center justify-between p-4 rounded-xl border bg-card">
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold">{method.crypto_name} ({method.crypto_type})</span>
+                {method.network && (
+                  <span className="px-2 py-0.5 rounded text-xs bg-primary/10 text-primary">
+                    {method.network}
+                  </span>
+                )}
                 <span className={`px-2 py-0.5 rounded text-xs ${method.is_enabled ? 'bg-success/10 text-success' : 'bg-muted text-muted-foreground'}`}>
                   {method.is_enabled ? 'Enabled' : 'Disabled'}
                 </span>
@@ -62,8 +67,22 @@ export function PaymentMethodsManagement() {
         <DialogContent>
           <DialogHeader><DialogTitle>Edit {editMethod?.crypto_name}</DialogTitle></DialogHeader>
           <div className="space-y-4 py-4">
-            <div><Label>Wallet Address</Label><Input value={formData.wallet_address} onChange={(e) => setFormData(p => ({ ...p, wallet_address: e.target.value }))} /></div>
-            <div className="flex items-center gap-2"><Switch checked={formData.is_enabled} onCheckedChange={(c) => setFormData(p => ({ ...p, is_enabled: c }))} /><Label>Enabled</Label></div>
+            <div className="space-y-2">
+              <Label>Wallet Address</Label>
+              <Input value={formData.wallet_address} onChange={(e) => setFormData(p => ({ ...p, wallet_address: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Network (e.g., TRC-20, ERC-20, Bitcoin Mainnet)</Label>
+              <Input 
+                value={formData.network} 
+                onChange={(e) => setFormData(p => ({ ...p, network: e.target.value }))} 
+                placeholder="e.g., Tron Network (TRC-20)"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch checked={formData.is_enabled} onCheckedChange={(c) => setFormData(p => ({ ...p, is_enabled: c }))} />
+              <Label>Enabled</Label>
+            </div>
           </div>
           <DialogFooter><Button onClick={handleSave} disabled={isSaving}>{isSaving ? 'Saving...' : 'Save'}</Button></DialogFooter>
         </DialogContent>
