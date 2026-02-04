@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Check, Crown, Diamond, Medal, Gem, Star, Zap } from 'lucide-react';
 import { useInvestmentPlans, InvestmentPlan } from '@/hooks/useInvestmentPlans';
 import { InsufficientBalanceModal } from './InsufficientBalanceModal';
+import { InvestFromBalanceModal } from './InvestFromBalanceModal';
 import { NewDepositModal } from './NewDepositModal';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -76,6 +77,7 @@ export function InvestmentPlans({
 }: InvestmentPlansProps) {
   const { plans, isLoading: plansLoading } = useInvestmentPlans();
   const [insufficientModalOpen, setInsufficientModalOpen] = useState(false);
+  const [investModalOpen, setInvestModalOpen] = useState(false);
   const [depositModalOpen, setDepositModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<InvestmentPlan | null>(null);
 
@@ -83,20 +85,27 @@ export function InvestmentPlans({
   const isLoading = plansLoading || externalLoading;
 
   const handlePlanClick = (plan: InvestmentPlan) => {
-    // Check if user has sufficient balance
-    if (currentBalance < plan.min_investment) {
-      setSelectedPlan(plan);
-      setInsufficientModalOpen(true);
-      return;
-    }
+    setSelectedPlan(plan);
     
-    // User has sufficient balance, proceed with plan selection
-    onSelectPlan(plan);
+    // Check if user has sufficient balance for minimum investment
+    if (currentBalance >= plan.min_investment) {
+      // User has sufficient balance, open invest from balance modal
+      setInvestModalOpen(true);
+    } else {
+      // Not enough balance, show insufficient balance modal
+      setInsufficientModalOpen(true);
+    }
   };
 
   const handleDepositClick = () => {
     setInsufficientModalOpen(false);
     setDepositModalOpen(true);
+  };
+
+  const handleInvestSuccess = () => {
+    setInvestModalOpen(false);
+    setSelectedPlan(null);
+    onDepositSuccess?.();
   };
 
   const handleDepositSuccess = () => {
@@ -211,6 +220,14 @@ export function InvestmentPlans({
         currentBalance={currentBalance}
         planName={selectedPlan?.name || ''}
         onDeposit={handleDepositClick}
+      />
+
+      <InvestFromBalanceModal
+        open={investModalOpen}
+        onOpenChange={setInvestModalOpen}
+        plan={selectedPlan}
+        currentBalance={currentBalance}
+        onSuccess={handleInvestSuccess}
       />
 
       <NewDepositModal

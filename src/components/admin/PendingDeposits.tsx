@@ -27,6 +27,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { createNotification } from '@/hooks/useNotifications';
 import { safeAddAmounts, isSafeFinancialNumber } from '@/lib/financial-validation';
+import { ProofViewer } from './ProofViewer';
 
 interface Deposit {
   id: string;
@@ -442,36 +443,7 @@ export function PendingDeposits() {
           </DialogHeader>
           <div className="py-4">
             {selectedDeposit?.proof_image_url && (
-              <div className="space-y-4">
-                {/* Check if it's an image or other file type */}
-                {selectedDeposit.proof_image_url.match(/\.(jpg|jpeg|png|gif|webp)$/i) ? (
-                  <img 
-                    src={selectedDeposit.proof_image_url} 
-                    alt="Transaction proof" 
-                    className="w-full rounded-xl border border-border"
-                  />
-                ) : selectedDeposit.proof_image_url.match(/\.pdf$/i) ? (
-                  <iframe 
-                    src={selectedDeposit.proof_image_url} 
-                    title="Transaction proof PDF"
-                    className="w-full h-[500px] rounded-xl border border-border"
-                  />
-                ) : (
-                  <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                    <ExternalLink className="h-12 w-12 mb-4 opacity-50" />
-                    <p className="mb-4">Preview not available for this file type</p>
-                  </div>
-                )}
-                <a 
-                  href={selectedDeposit.proof_image_url} 
-                  target="_blank" 
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Open in new tab / Download
-                </a>
-              </div>
+              <ProofViewer proofUrl={selectedDeposit.proof_image_url} />
             )}
           </div>
         </DialogContent>
