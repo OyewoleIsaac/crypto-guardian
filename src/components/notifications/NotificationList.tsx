@@ -55,6 +55,8 @@ export function NotificationList({
   onClose,
 }: NotificationListProps) {
   const unreadNotifications = notifications.filter(n => !n.is_read);
+  // Show only unread notifications in the list - read notifications are hidden
+  const visibleNotifications = unreadNotifications;
 
   if (isLoading) {
     return (
@@ -85,27 +87,23 @@ export function NotificationList({
       </div>
 
       <ScrollArea className="h-[300px]">
-        {notifications.length === 0 ? (
+        {visibleNotifications.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
             <Bell className="h-10 w-10 mb-3 opacity-50" />
-            <p className="text-sm">No notifications yet</p>
+            <p className="text-sm">No new notifications</p>
           </div>
         ) : (
           <div className="divide-y divide-border">
-            {notifications.map((notification) => {
+            {visibleNotifications.map((notification) => {
               const Icon = typeIcons[notification.type] || Info;
               const colorClass = typeColors[notification.type] || typeColors.info;
 
               return (
                 <div
                   key={notification.id}
-                  className={`p-4 hover:bg-muted/50 transition-colors cursor-pointer ${
-                    !notification.is_read ? 'bg-primary/5' : ''
-                  }`}
+                  className="p-4 hover:bg-muted/50 transition-colors cursor-pointer bg-primary/5"
                   onClick={() => {
-                    if (!notification.is_read) {
-                      onMarkAsRead(notification.id);
-                    }
+                    onMarkAsRead(notification.id);
                   }}
                 >
                   <div className="flex gap-3">
@@ -114,12 +112,10 @@ export function NotificationList({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-2">
-                        <p className={`font-medium text-sm ${!notification.is_read ? 'text-foreground' : 'text-muted-foreground'}`}>
+                        <p className="font-medium text-sm text-foreground">
                           {notification.title}
                         </p>
-                        {!notification.is_read && (
-                          <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5" />
-                        )}
+                        <span className="h-2 w-2 rounded-full bg-primary shrink-0 mt-1.5" />
                       </div>
                       <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
                         {notification.message}

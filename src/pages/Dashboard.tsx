@@ -207,7 +207,12 @@ export default function Dashboard() {
   }
 
   const currentBalance = investment?.balance || 0;
-  const currentPlan = investment?.plan || 'silver';
+  
+  // Get the active investment plan type (if any active investment)
+  const activeInvestmentPlan = activeInvestments.length > 0 
+    ? activeInvestments[0].plan?.name?.toLowerCase() || 'silver'
+    : null;
+  const currentPlan = activeInvestmentPlan || investment?.plan || 'silver';
   const PlanIcon = planIcons[currentPlan] || Medal;
 
   // Calculate total active ROI
@@ -241,9 +246,9 @@ export default function Dashboard() {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className={`grid grid-cols-1 md:grid-cols-2 ${activeInvestments.length > 0 ? 'lg:grid-cols-4' : 'lg:grid-cols-3'} gap-6 mb-8`}>
           {/* Total Balance */}
-          <div className="relative overflow-hidden rounded-2xl bg-gradient-primary p-6 text-primary-foreground col-span-1 lg:col-span-2">
+          <div className={`relative overflow-hidden rounded-2xl bg-gradient-primary p-6 text-primary-foreground ${activeInvestments.length > 0 ? 'col-span-1 lg:col-span-2' : 'col-span-1 lg:col-span-2'}`}>
             <div className="relative z-10">
               <div className="flex items-center gap-3 mb-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary-foreground/20">
@@ -251,16 +256,18 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <span className="text-primary-foreground/80 font-medium">Available Balance</span>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                      currentPlan === 'diamond' ? 'bg-cyan-500/20 text-cyan-100' :
-                      currentPlan === 'gold' ? 'bg-amber-500/20 text-amber-100' :
-                      'bg-slate-500/20 text-slate-100'
-                    }`}>
-                      <PlanIcon className="h-3 w-3" />
-                      {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
-                    </span>
-                  </div>
+                  {activeInvestments.length > 0 && (
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        currentPlan === 'diamond' ? 'bg-cyan-500/20 text-cyan-100' :
+                        currentPlan === 'gold' ? 'bg-amber-500/20 text-amber-100' :
+                        'bg-slate-500/20 text-slate-100'
+                      }`}>
+                        <PlanIcon className="h-3 w-3" />
+                        {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
               <p className="font-display text-4xl font-bold">
@@ -277,34 +284,36 @@ export default function Dashboard() {
             <div className="absolute -top-8 -right-16 w-40 h-40 rounded-full bg-primary-foreground/5" />
           </div>
 
-          {/* Active Investments - Click to navigate */}
-          <button 
-            onClick={() => {
-              // Find the tabs and switch to investments tab
-              const tabsTrigger = document.querySelector('[data-state][value="investments"]') as HTMLElement;
-              if (tabsTrigger) tabsTrigger.click();
-            }}
-            className="rounded-2xl bg-card border border-border p-6 hover:shadow-lg hover:border-primary/50 transition-all text-left group cursor-pointer"
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10 group-hover:bg-success/20 transition-colors">
-                <Briefcase className="h-6 w-6 text-success" />
+          {/* Active Investments - Only show if there are active investments */}
+          {activeInvestments.length > 0 && (
+            <button 
+              onClick={() => {
+                // Find the tabs and switch to investments tab
+                const tabsTrigger = document.querySelector('[data-state][value="investments"]') as HTMLElement;
+                if (tabsTrigger) tabsTrigger.click();
+              }}
+              className="rounded-2xl bg-card border border-border p-6 hover:shadow-lg hover:border-primary/50 transition-all text-left group cursor-pointer"
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-success/10 group-hover:bg-success/20 transition-colors">
+                  <Briefcase className="h-6 w-6 text-success" />
+                </div>
+                <span className="text-muted-foreground font-medium">Active Investments</span>
               </div>
-              <span className="text-muted-foreground font-medium">Active Investments</span>
-            </div>
-            <p className="font-display text-2xl font-bold text-foreground mb-1">
-              ${totalActiveInvestment.toLocaleString('en-US', { minimumFractionDigits: 2 })}
-            </p>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-success text-sm">
-                <ArrowUpRight className="h-4 w-4" />
-                <span>{activeInvestments.length} active plan{activeInvestments.length !== 1 ? 's' : ''}</span>
+              <p className="font-display text-2xl font-bold text-foreground mb-1">
+                ${totalActiveInvestment.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-success text-sm">
+                  <ArrowUpRight className="h-4 w-4" />
+                  <span>{activeInvestments.length} active plan{activeInvestments.length !== 1 ? 's' : ''}</span>
+                </div>
+                <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
+                  Click to view →
+                </span>
               </div>
-              <span className="text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                Click to view →
-              </span>
-            </div>
-          </button>
+            </button>
+          )}
 
           {/* Pending Deposits */}
           <div className="rounded-2xl bg-card border border-border p-6 hover:shadow-lg transition-shadow">
@@ -384,7 +393,9 @@ export default function Dashboard() {
               </div>
               <div className="rounded-xl bg-card border border-border p-4">
                 <p className="text-sm text-muted-foreground mb-1">Account Type</p>
-                <p className="font-semibold text-foreground capitalize">{currentPlan} Investor</p>
+                <p className="font-semibold text-foreground capitalize">
+                  {activeInvestments.length > 0 ? `${currentPlan} Investor` : 'Standard'}
+                </p>
               </div>
             </div>
 
