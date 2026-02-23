@@ -5,10 +5,10 @@ import { Navbar } from '@/components/layout/Navbar';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { 
-  Wallet, 
-  TrendingUp, 
-  Clock, 
+import {
+  Wallet,
+  TrendingUp,
+  Clock,
   Plus,
   ArrowUpRight,
   RefreshCw,
@@ -20,7 +20,8 @@ import {
   User,
   Briefcase,
   Users,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Gift
 } from 'lucide-react';
 import { NewDepositModal } from '@/components/dashboard/NewDepositModal';
 import { TransactionsList } from '@/components/dashboard/TransactionsList';
@@ -63,10 +64,23 @@ export default function Dashboard() {
   const [pendingDeposits, setPendingDeposits] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [depositModalOpen, setDepositModalOpen] = useState(false);
+  const [isClaimAllLoading, setIsClaimAllLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
-  const { 
-    activeInvestments, 
-    isLoading: investmentsLoading, 
+  const switchToTab = (tab: string) => {
+    setActiveTab(tab);
+    if (tab === 'investments') {
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          document.getElementById('tab-investments')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 100);
+      });
+    }
+  };
+
+  const {
+    activeInvestments,
+    isLoading: investmentsLoading,
     refetch: refetchInvestments,
     getClaimableRoi,
     canWithdraw,
@@ -124,9 +138,9 @@ export default function Dashboard() {
     }
   };
 
-  const handleSelectPlan = async (plan: InvestmentPlan) => {
+  const handleSelectPlan = (plan: InvestmentPlan) => {
     if (!user) return;
-    
+
     // Plan is selected, open deposit modal with preselected plan
     setDepositModalOpen(true);
     toast.info(`To activate ${plan.name}, please complete a deposit of at least $${plan.min_investment.toLocaleString()}`);
@@ -137,64 +151,93 @@ export default function Dashboard() {
     refetchInvestments();
   };
 
-  const handleWithdraw = async (investmentId: string) => {
+  const handleClaimAllCompleted = async () => {
     if (!user) return;
-    
+
+    const claimableInvestments = activeInvestments.filter(inv => canWithdraw(inv));
+
+    if (claimableInvestments.length === 0) {
+      toast.info('No completed investments to claim');
+      return;
+    }
+
+    setIsClaimAllLoading(true);
+
     try {
-      const investment = activeInvestments.find(i => i.id === investmentId);
-      if (!investment) throw new Error('Investment not found');
+      // Process each completed investment: mark completed, compute payout, and record transaction
+      const payouts = await Promise.all(
+        claimableInvestments.map(async (inv) => {
+          const remainingRoi = getClaimableRoi(inv);
+          const totalAmount = inv.principal_amount + remainingRoi;
 
-      // First claim any remaining ROI
-      const remainingRoi = getClaimableRoi(investment);
-      const totalAmount = investment.principal_amount + remainingRoi;
+          const { error: updateError } = await supabase
+            .from('active_investments')
+            .update({
+              status: 'completed',
+              claimed_roi: inv.claimed_roi + remainingRoi,
+            })
+            .eq('id', inv.id);
 
-      // Update investment status
-      const { error: updateError } = await supabase
-        .from('active_investments')
-        .update({ 
-          status: 'completed',
-          claimed_roi: investment.claimed_roi + remainingRoi
+          if (updateError) throw updateError;
+
+          const { error: txError } = await supabase
+            .from('transactions')
+            .insert({
+              user_id: user.id,
+              type: 'investment_completed',
+              amount: totalAmount,
+              description: 'Principal and ROI claimed',
+            });
+
+          if (txError) throw txError;
+
+          return totalAmount;
         })
-        .eq('id', investmentId);
+      );
 
-      if (updateError) throw updateError;
+      const totalPayout = payouts.reduce((sum, amount) => sum + amount, 0);
 
-      // Add to user balance
+      // Update user balance once with the total payout
       const { data: currentInvestment, error: fetchError } = await supabase
         .from('investments')
         .select('balance')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
       if (fetchError) throw fetchError;
 
-      const newBalance = Number(currentInvestment.balance) + totalAmount;
+      const baseBalance = Number(currentInvestment?.balance || 0);
+      const newBalance = baseBalance + totalPayout;
 
-      const { error: balanceError } = await supabase
-        .from('investments')
-        .update({ balance: newBalance })
-        .eq('user_id', user.id);
+      if (currentInvestment) {
+        const { error: balanceError } = await supabase
+          .from('investments')
+          .update({ balance: newBalance })
+          .eq('user_id', user.id);
 
-      if (balanceError) throw balanceError;
+        if (balanceError) throw balanceError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('investments')
+          .insert({
+            user_id: user.id,
+            balance: newBalance,
+          });
 
-      // Record transaction
-      const { error: txError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: user.id,
-          type: 'withdrawal',
-          amount: totalAmount,
-          description: `Investment completed - Principal + ROI`,
-        });
+        if (insertError) throw insertError;
+      }
 
-      if (txError) throw txError;
+      toast.success(
+        `Successfully claimed rewards from ${claimableInvestments.length} investment${claimableInvestments.length > 1 ? 's' : ''} totaling $${totalPayout.toFixed(2)}`
+      );
 
-      toast.success(`Successfully withdrew $${totalAmount.toFixed(2)}!`);
       fetchData();
       refetchInvestments();
     } catch (error) {
-      console.error('Error withdrawing:', error);
-      toast.error('Failed to withdraw investment');
+      console.error('Error claiming all rewards:', error);
+      toast.error('Failed to claim all rewards');
+    } finally {
+      setIsClaimAllLoading(false);
     }
   };
 
@@ -207,9 +250,9 @@ export default function Dashboard() {
   }
 
   const currentBalance = investment?.balance || 0;
-  
+
   // Get the active investment plan type (if any active investment)
-  const activeInvestmentPlan = activeInvestments.length > 0 
+  const activeInvestmentPlan = activeInvestments.length > 0
     ? activeInvestments[0].plan?.name?.toLowerCase() || 'silver'
     : null;
   const currentPlan = activeInvestmentPlan || investment?.plan || 'silver';
@@ -218,11 +261,12 @@ export default function Dashboard() {
   // Calculate total active ROI
   const totalActiveInvestment = activeInvestments.reduce((sum, inv) => sum + inv.principal_amount, 0);
   const totalClaimableRoi = activeInvestments.reduce((sum, inv) => sum + getClaimableRoi(inv), 0);
+  const hasCompletedInvestments = activeInvestments.some(inv => canWithdraw(inv));
 
   return (
     <div className="min-h-screen bg-background">
       <Navbar />
-      
+
       <main className="container mx-auto px-4 pt-24 pb-12">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-8">
@@ -234,9 +278,9 @@ export default function Dashboard() {
               Manage your crypto investments and track your portfolio
             </p>
           </div>
-          <Button 
-            variant="hero" 
-            size="lg" 
+          <Button
+            variant="hero"
+            size="lg"
             className="gap-2"
             onClick={() => setDepositModalOpen(true)}
           >
@@ -258,11 +302,10 @@ export default function Dashboard() {
                   <span className="text-primary-foreground/80 font-medium">Available Balance</span>
                   {activeInvestments.length > 0 && (
                     <div className="flex items-center gap-2 mt-1">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        currentPlan === 'diamond' ? 'bg-cyan-500/20 text-cyan-100' :
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${currentPlan === 'diamond' ? 'bg-cyan-500/20 text-cyan-100' :
                         currentPlan === 'gold' ? 'bg-amber-500/20 text-amber-100' :
-                        'bg-slate-500/20 text-slate-100'
-                      }`}>
+                          'bg-slate-500/20 text-slate-100'
+                        }`}>
                         <PlanIcon className="h-3 w-3" />
                         {currentPlan.charAt(0).toUpperCase() + currentPlan.slice(1)} Plan
                       </span>
@@ -273,7 +316,7 @@ export default function Dashboard() {
               <p className="font-display text-4xl font-bold">
                 ${currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </p>
-              {totalClaimableRoi > 0 && (
+              {activeInvestments.length > 0 && (
                 <p className="text-primary-foreground/70 text-sm mt-2 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4" />
                   Claimable ROI: ${totalClaimableRoi.toFixed(2)}
@@ -286,12 +329,8 @@ export default function Dashboard() {
 
           {/* Active Investments - Only show if there are active investments */}
           {activeInvestments.length > 0 && (
-            <button 
-              onClick={() => {
-                // Find the tabs and switch to investments tab
-                const tabsTrigger = document.querySelector('[data-state][value="investments"]') as HTMLElement;
-                if (tabsTrigger) tabsTrigger.click();
-              }}
+            <button
+              onClick={() => switchToTab('investments')}
               className="rounded-2xl bg-card border border-border p-6 hover:shadow-lg hover:border-primary/50 transition-all text-left group cursor-pointer"
             >
               <div className="flex items-center gap-3 mb-4">
@@ -335,6 +374,8 @@ export default function Dashboard() {
         {/* Tabs Content */}
         <ResponsiveTabs
           defaultValue="overview"
+          value={activeTab}
+          onValueChange={(tab) => switchToTab(tab)}
           tabs={[
             { value: "overview", label: "Overview", icon: <BarChart3 className="h-4 w-4" /> },
             { value: "investments", label: "My Investments", icon: <Briefcase className="h-4 w-4" /> },
@@ -364,13 +405,10 @@ export default function Dashboard() {
                       </p>
                     )}
                   </div>
-                  <Button 
-                    variant="success" 
+                  <Button
+                    variant="success"
                     className="gap-2"
-                    onClick={() => {
-                      const tabsTrigger = document.querySelector('[data-state][value="investments"]') as HTMLElement;
-                      if (tabsTrigger) tabsTrigger.click();
-                    }}
+                    onClick={() => switchToTab('investments')}
                   >
                     <Briefcase className="h-4 w-4" />
                     View Investments
@@ -405,9 +443,9 @@ export default function Dashboard() {
                 <h2 className="font-display text-xl font-semibold text-foreground">
                   Recent Transactions
                 </h2>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   onClick={fetchData}
                   className="gap-2"
                 >
@@ -415,15 +453,15 @@ export default function Dashboard() {
                   Refresh
                 </Button>
               </div>
-              
-              <TransactionsList 
-                transactions={transactions} 
-                isLoading={isLoading} 
+
+              <TransactionsList
+                transactions={transactions}
+                isLoading={isLoading}
               />
             </div>
           </TabsContent>
 
-          <TabsContent value="investments" className="space-y-6">
+          <TabsContent value="investments" id="tab-investments" className="space-y-6 scroll-mt-8">
             <div className="rounded-2xl bg-card border border-border p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
@@ -434,15 +472,29 @@ export default function Dashboard() {
                     Track your investments and claim your ROI
                   </p>
                 </div>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  onClick={refetchInvestments}
-                  className="gap-2"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                  Refresh
-                </Button>
+                <div className="flex items-center gap-2">
+                  {hasCompletedInvestments && (
+                    <Button
+                      variant="success"
+                      size="sm"
+                      className="gap-2"
+                      onClick={handleClaimAllCompleted}
+                      disabled={isClaimAllLoading}
+                    >
+                      <Gift className="h-4 w-4" />
+                      {isClaimAllLoading ? 'Claiming...' : 'Claim All Rewards'}
+                    </Button>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={refetchInvestments}
+                    className="gap-2"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
               </div>
 
               {investmentsLoading ? (
@@ -456,8 +508,8 @@ export default function Dashboard() {
                   <Briefcase className="h-12 w-12 mx-auto mb-4 opacity-50" />
                   <p className="font-medium">No active investments</p>
                   <p className="text-sm mt-1">Select a plan and make a deposit to start investing</p>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="mt-4"
                     onClick={() => setDepositModalOpen(true)}
                   >
@@ -483,7 +535,7 @@ export default function Dashboard() {
               {activeInvestments.length > 0 && (
                 <div className="mt-6 p-4 rounded-xl bg-warning/10 border border-warning/20">
                   <p className="text-sm text-warning font-medium">
-                    ⚠️ Important: Withdrawals will be available after the investment period ends. 
+                    ⚠️ Important: Withdrawals will be available after the investment period ends.
                     You can claim your daily ROI at any time, but your principal will remain locked until maturity.
                   </p>
                 </div>
@@ -501,12 +553,15 @@ export default function Dashboard() {
                   Select a plan that matches your investment goals. Higher tiers offer better returns and exclusive benefits.
                 </p>
               </div>
-              
-              <InvestmentPlans 
+
+              <InvestmentPlans
                 currentPlan={currentPlan}
                 currentBalance={currentBalance}
                 onSelectPlan={handleSelectPlan}
-                onDepositSuccess={fetchData}
+                onDepositSuccess={() => {
+                  fetchData();
+                  refetchInvestments();
+                }}
               />
             </div>
           </TabsContent>
@@ -521,7 +576,7 @@ export default function Dashboard() {
                   Request withdrawals from your available balance.
                 </p>
               </div>
-              <WithdrawalSection />
+              <WithdrawalSection onSuccess={fetchData} />
             </div>
           </TabsContent>
 
@@ -535,7 +590,7 @@ export default function Dashboard() {
                   Complete record of all your deposits, withdrawals, investments and ROI claims.
                 </p>
               </div>
-              
+
               <TransactionHistory />
             </div>
           </TabsContent>
@@ -553,8 +608,8 @@ export default function Dashboard() {
         </ResponsiveTabs>
       </main>
 
-      <NewDepositModal 
-        open={depositModalOpen} 
+      <NewDepositModal
+        open={depositModalOpen}
         onOpenChange={setDepositModalOpen}
         onSuccess={() => {
           fetchData();

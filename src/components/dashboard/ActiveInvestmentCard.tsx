@@ -29,6 +29,7 @@ export function ActiveInvestmentCard({
   onUpdate,
 }: ActiveInvestmentCardProps) {
   const [isClaiming, setIsClaiming] = useState(false);
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const totalDuration = investment.plan?.duration_days || 30;
   const daysElapsed = totalDuration - daysRemaining;
@@ -66,14 +67,26 @@ export function ActiveInvestmentCard({
 
       if (fetchError) throw fetchError;
 
-      const newBalance = (currentInvestment?.balance || 0) + claimableRoi;
+      const baseBalance = Number(currentInvestment?.balance || 0);
+      const newBalance = baseBalance + claimableRoi;
 
-      const { error: balanceError } = await supabase
-        .from('investments')
-        .update({ balance: newBalance })
-        .eq('user_id', investment.user_id);
+      if (currentInvestment) {
+        const { error: balanceError } = await supabase
+          .from('investments')
+          .update({ balance: newBalance })
+          .eq('user_id', investment.user_id);
 
-      if (balanceError) throw balanceError;
+        if (balanceError) throw balanceError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('investments')
+          .insert({
+            user_id: investment.user_id,
+            balance: newBalance,
+          });
+
+        if (insertError) throw insertError;
+      }
 
       // Record transaction
       const { error: txError } = await supabase
@@ -94,6 +107,93 @@ export function ActiveInvestmentCard({
       toast.error('Failed to claim ROI');
     } finally {
       setIsClaiming(false);
+    }
+  };
+
+  const handleWithdraw = async () => {
+    if (!canWithdraw || isWithdrawing) return;
+
+    setIsWithdrawing(true);
+    try {
+      // Calculate remaining ROI similar to getClaimableRoi
+      const now = new Date();
+      const startDate = new Date(investment.start_date);
+      const endDate = new Date(investment.end_date);
+
+      if (now < startDate) {
+        toast.info('Investment has not started yet');
+        return;
+      }
+
+      const effectiveEndDate = now < endDate ? now : endDate;
+      const daysElapsed = Math.floor(
+        (effectiveEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+      );
+
+      const totalEarned = investment.daily_roi * daysElapsed;
+      const remainingRoi = Math.max(0, totalEarned - investment.claimed_roi);
+      const totalAmount = investment.principal_amount + remainingRoi;
+
+      // Mark investment as completed and update claimed ROI
+      const { error: updateError } = await supabase
+        .from('active_investments')
+        .update({
+          status: 'completed',
+          claimed_roi: investment.claimed_roi + remainingRoi,
+        })
+        .eq('id', investment.id);
+
+      if (updateError) throw updateError;
+
+      // Add principal + remaining ROI back to user balance
+      const { data: currentInvestment, error: fetchError } = await supabase
+        .from('investments')
+        .select('balance')
+        .eq('user_id', investment.user_id)
+        .maybeSingle();
+
+      if (fetchError) throw fetchError;
+
+      const baseBalance = Number(currentInvestment?.balance || 0);
+      const newBalance = baseBalance + totalAmount;
+
+      if (currentInvestment) {
+        const { error: balanceError } = await supabase
+          .from('investments')
+          .update({ balance: newBalance })
+          .eq('user_id', investment.user_id);
+
+        if (balanceError) throw balanceError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('investments')
+          .insert({
+            user_id: investment.user_id,
+            balance: newBalance,
+          });
+
+        if (insertError) throw insertError;
+      }
+
+      // Record transaction (type investment_completed so History shows "Investment Completed" / "Principal and ROI claimed")
+      const { error: txError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: investment.user_id,
+          type: 'investment_completed',
+          amount: totalAmount,
+          description: 'Principal and ROI claimed',
+        });
+
+      if (txError) throw txError;
+
+      toast.success(`Reward claimed: $${totalAmount.toFixed(2)} added to your balance`);
+      onUpdate();
+    } catch (error) {
+      console.error('Error withdrawing investment:', error);
+      toast.error('Failed to claim reward');
+    } finally {
+      setIsWithdrawing(false);
     }
   };
 
@@ -188,11 +288,21 @@ export function ActiveInvestmentCard({
       {canWithdraw && (
         <div className="flex items-start gap-3 rounded-xl bg-success/10 border border-success/20 p-4">
           <CheckCircle className="h-5 w-5 text-success flex-shrink-0 mt-0.5" />
-          <div>
+          <div className="flex-1">
             <p className="text-sm font-medium text-success">Investment Complete</p>
             <p className="text-xs text-muted-foreground">
-              Your principal of ${investment.principal_amount.toLocaleString()} is now available for withdrawal.
+              Your principal of ${investment.principal_amount.toLocaleString()} and any remaining ROI are ready to be claimed.
             </p>
+            <div className="mt-3">
+              <Button
+                size="sm"
+                className="gap-2"
+                onClick={handleWithdraw}
+                disabled={isWithdrawing}
+              >
+                {isWithdrawing ? 'Processing...' : 'Claim Reward'}
+              </Button>
+            </div>
           </div>
         </div>
       )}

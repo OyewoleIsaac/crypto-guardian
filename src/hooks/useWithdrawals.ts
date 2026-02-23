@@ -59,7 +59,7 @@ export function useWithdrawals() {
     fetchWithdrawals();
   }, [fetchWithdrawals]);
 
-  // Check withdrawal eligibility based on 30-day rule
+  // Check withdrawal eligibility: can withdraw if balance > 0
   const checkEligibility = useCallback(async (): Promise<WithdrawalEligibility> => {
     if (!user) {
       return {
@@ -71,7 +71,6 @@ export function useWithdrawals() {
       };
     }
 
-    // Get user balance
     const { data: investment, error: balanceError } = await supabase
       .from('investments')
       .select('balance')
@@ -82,73 +81,12 @@ export function useWithdrawals() {
       console.error('Error fetching balance:', balanceError);
     }
 
-    const availableBalance = investment?.balance || 0;
+    const availableBalance = Number(investment?.balance || 0);
 
-    // Check if user has any investments
-    if (activeInvestments.length === 0) {
-      // Check if there are any completed investments
-      const { data: completedInvestments, error: completedError } = await supabase
-        .from('active_investments')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('status', 'completed');
-
-      if (completedError) {
-        console.error('Error checking completed investments:', completedError);
-      }
-
-      if (!completedInvestments || completedInvestments.length === 0) {
-        return {
-          canWithdraw: false,
-          reason: 'No balance available for withdrawal. Please make an investment first.',
-          availableBalance,
-          daysUntilEligible: null,
-          hasActiveInvestment: false,
-        };
-      }
-    }
-
-    // Check 30-day rule from earliest active investment
-    const earliestInvestment = activeInvestments.reduce((earliest, inv) => {
-      const invStart = new Date(inv.start_date);
-      const earliestStart = earliest ? new Date(earliest.start_date) : null;
-      return !earliestStart || invStart < earliestStart ? inv : earliest;
-    }, activeInvestments[0]);
-
-    if (earliestInvestment) {
-      const startDate = new Date(earliestInvestment.start_date);
-      const now = new Date();
-      const daysSinceStart = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-      
-      if (daysSinceStart < 30) {
-        const daysUntilEligible = 30 - daysSinceStart;
-        return {
-          canWithdraw: false,
-          reason: `Withdrawals are only available after 30 days. ${daysUntilEligible} day${daysUntilEligible !== 1 ? 's' : ''} remaining.`,
-          availableBalance,
-          daysUntilEligible,
-          hasActiveInvestment: true,
-        };
-      }
-    }
-
-    // Check if balance is positive
     if (availableBalance <= 0) {
       return {
         canWithdraw: false,
-        reason: 'No balance available for withdrawal.',
-        availableBalance,
-        daysUntilEligible: null,
-        hasActiveInvestment: activeInvestments.length > 0,
-      };
-    }
-
-    // Check for pending withdrawals
-    const hasPendingWithdrawal = withdrawals.some(w => w.status === 'pending');
-    if (hasPendingWithdrawal) {
-      return {
-        canWithdraw: false,
-        reason: 'You already have a pending withdrawal request. Please wait for it to be processed.',
+        reason: 'No balance available for withdrawal. Make a deposit first.',
         availableBalance,
         daysUntilEligible: null,
         hasActiveInvestment: activeInvestments.length > 0,
@@ -157,17 +95,22 @@ export function useWithdrawals() {
 
     return {
       canWithdraw: true,
-      reason: 'You are eligible to withdraw.',
+      reason: 'You can withdraw from your available balance.',
       availableBalance,
       daysUntilEligible: null,
       hasActiveInvestment: activeInvestments.length > 0,
     };
-  }, [user, activeInvestments, withdrawals]);
+  }, [user, activeInvestments]);
 
-  // Submit withdrawal request
-  const submitWithdrawal = async (amount: number, walletAddress: string, cryptoType: string = 'USDT') => {
+  // Submit withdrawal: deduct balance immediately, create pending withdrawal
+  const submitWithdrawal = async (
+    amount: number,
+    walletAddress: string,
+    cryptoType: string = 'USDT',
+    network: string | null = null
+  ) => {
     if (!user) throw new Error('User not authenticated');
-    
+
     const eligibility = await checkEligibility();
     if (!eligibility.canWithdraw) {
       throw new Error(eligibility.reason);
@@ -181,6 +124,24 @@ export function useWithdrawals() {
       throw new Error('Withdrawal amount must be greater than zero.');
     }
 
+    // 1. Deduct from balance immediately
+    const { data: investment } = await supabase
+      .from('investments')
+      .select('balance')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const currentBalance = Number(investment?.balance || 0);
+    const newBalance = Math.max(0, currentBalance - amount);
+
+    const { error: balanceError } = await supabase
+      .from('investments')
+      .update({ balance: newBalance })
+      .eq('user_id', user.id);
+
+    if (balanceError) throw balanceError;
+
+    // 2. Create pending withdrawal
     const { data, error } = await supabase
       .from('withdrawals')
       .insert({
@@ -188,26 +149,23 @@ export function useWithdrawals() {
         amount,
         wallet_address: walletAddress,
         crypto_type: cryptoType,
+        network,
         status: 'pending',
       })
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) {
+      // Refund on insert failure
+      await supabase.from('investments').update({ balance: currentBalance }).eq('user_id', user.id);
+      throw error;
+    }
 
-    // Create notification for user
     await supabase.from('notifications').insert({
       user_id: user.id,
       title: 'Withdrawal Request Submitted',
-      message: `Your withdrawal request for $${amount.toFixed(2)} has been submitted and is pending approval.`,
+      message: `Your withdrawal of $${amount.toFixed(2)} (${cryptoType}) is pending. Processing typically takes 1–3 hours, or up to 3 business days in some cases.`,
       type: 'info',
-    });
-
-    // Log audit event
-    await supabase.from('audit_logs').insert({
-      user_id: user.id,
-      action: 'withdrawal_request',
-      details: { amount, wallet_address: walletAddress, crypto_type: cryptoType },
     });
 
     await fetchWithdrawals();

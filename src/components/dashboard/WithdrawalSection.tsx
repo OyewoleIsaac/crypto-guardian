@@ -38,7 +38,11 @@ import { usePaymentMethods } from '@/hooks/usePaymentMethods';
 import { format } from 'date-fns';
 import { parseFinancialAmount, validateFinancialInput, MAX_FINANCIAL_AMOUNT } from '@/lib/financial-validation';
 
-export function WithdrawalSection() {
+interface WithdrawalSectionProps {
+  onSuccess?: () => void;
+}
+
+export function WithdrawalSection({ onSuccess }: WithdrawalSectionProps = {}) {
   const { 
     withdrawals, 
     isLoading, 
@@ -53,8 +57,18 @@ export function WithdrawalSection() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [amount, setAmount] = useState('');
   const [walletAddress, setWalletAddress] = useState('');
-  const [cryptoType, setCryptoType] = useState('USDT');
+  const [selectedMethod, setSelectedMethod] = useState<(typeof enabledMethods)[0] | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const effectiveMethod = selectedMethod || enabledMethods[0] || null;
+  const cryptoType = effectiveMethod?.crypto_type || 'USDT';
+  const network = effectiveMethod?.network || null;
+
+  useEffect(() => {
+    if (enabledMethods.length > 0 && !selectedMethod) {
+      setSelectedMethod(enabledMethods[0]);
+    }
+  }, [enabledMethods, selectedMethod]);
 
   useEffect(() => {
     const checkAndSetEligibility = async () => {
@@ -101,15 +115,16 @@ export function WithdrawalSection() {
 
     setIsSubmitting(true);
     try {
-      await submitWithdrawal(numAmount, walletAddress.trim(), cryptoType);
-      toast.success('Withdrawal request submitted successfully!');
+      await submitWithdrawal(numAmount, walletAddress.trim(), cryptoType, network);
+      toast.success('Withdrawal request submitted. Amount deducted. Processing typically takes 1–3 hours.');
       setIsModalOpen(false);
       setAmount('');
       setWalletAddress('');
+      setSelectedMethod(null);
       
-      // Re-check eligibility
       const newEligibility = await checkEligibility();
       setEligibility(newEligibility);
+      onSuccess?.();
     } catch (error: any) {
       toast.error(error.message || 'Failed to submit withdrawal request');
     } finally {
@@ -195,7 +210,7 @@ export function WithdrawalSection() {
               <DialogHeader>
                 <DialogTitle>Request Withdrawal</DialogTitle>
                 <DialogDescription>
-                  Enter the amount and wallet address for your withdrawal.
+                  Select a payment method and enter your wallet address. The network must match our deposit methods.
                 </DialogDescription>
               </DialogHeader>
               
@@ -223,37 +238,46 @@ export function WithdrawalSection() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="cryptoType">Cryptocurrency</Label>
-                  <Select value={cryptoType} onValueChange={setCryptoType}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select cryptocurrency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availablePaymentMethods.length > 0 ? (
-                        availablePaymentMethods.map((pm) => (
-                          <SelectItem key={pm.id} value={pm.crypto_type}>
-                            {pm.crypto_name} ({pm.crypto_type})
-                          </SelectItem>
-                        ))
-                      ) : (
-                        <SelectItem value="USDT">USDT</SelectItem>
-                      )}
-                    </SelectContent>
-                  </Select>
+                  <Label>Payment Method</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {availablePaymentMethods.map((pm) => (
+                      <button
+                        key={pm.id}
+                        type="button"
+                        onClick={() => setSelectedMethod(pm)}
+                        className={`p-3 rounded-xl border-2 text-center transition-all ${
+                          selectedMethod?.id === pm.id
+                            ? 'border-primary bg-primary/5'
+                            : 'border-border hover:border-primary/50'
+                        }`}
+                      >
+                        <p className="font-medium text-sm">{pm.crypto_type}</p>
+                        {pm.network && (
+                          <p className="text-xs text-muted-foreground mt-0.5">{pm.network}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  {availablePaymentMethods.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No payment methods configured. Contact support.</p>
+                  )}
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="walletAddress">Wallet Address</Label>
+                  <Label htmlFor="walletAddress">
+                    {cryptoType} Wallet Address {network && `(${network})`}
+                  </Label>
                   <Input
                     id="walletAddress"
                     type="text"
-                    placeholder="Enter your wallet address"
+                    placeholder={`Enter your ${cryptoType} address on ${network || 'correct network'}`}
                     value={walletAddress}
                     onChange={(e) => setWalletAddress(e.target.value)}
                     required
                   />
-                  <p className="text-xs text-muted-foreground">
-                    Make sure to enter the correct {cryptoType} wallet address.
+                  <p className="text-xs text-warning flex items-center gap-1">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    Use only the {network || cryptoType} network. Wrong network may result in loss of funds.
                   </p>
                 </div>
 
@@ -333,17 +357,30 @@ export function WithdrawalSection() {
         )}
       </Card>
 
-      {/* Info Box */}
+      {/* Pending notice & Info Box */}
+      {withdrawals.some(w => w.status === 'pending') && (
+        <Card className="p-4 bg-warning/5 border-warning/30">
+          <div className="flex items-start gap-3">
+            <Clock className="h-5 w-5 text-warning shrink-0 mt-0.5" />
+            <div className="text-sm">
+              <p className="font-medium text-foreground mb-1">Pending Withdrawal</p>
+              <p className="text-muted-foreground">
+                Withdrawals typically take 1–3 hours to process. In some cases, processing can take up to 3 business days.
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
       <Card className="p-4 bg-muted/50 border-dashed">
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" />
           <div className="text-sm text-muted-foreground">
             <p className="font-medium text-foreground mb-1">Important Information</p>
             <ul className="list-disc list-inside space-y-1">
-              <li>Withdrawals are only available 30 days after your first investment</li>
-              <li>All withdrawal requests require admin approval</li>
-              <li>Processing time may vary depending on the cryptocurrency network</li>
-              <li>Ensure your wallet address is correct - transactions cannot be reversed</li>
+              <li>The amount is deducted from your balance when you submit a withdrawal request</li>
+              <li>Processing typically takes 1–3 hours; in some cases up to 3 business days</li>
+              <li>Use the same network as for deposits (e.g. ERC-20, TRC-20) for the selected crypto</li>
+              <li>Ensure your wallet address is correct — transactions cannot be reversed</li>
             </ul>
           </div>
         </div>

@@ -25,7 +25,6 @@ import {
 } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { createNotification } from '@/hooks/useNotifications';
 import { safeAddAmounts, isSafeFinancialNumber } from '@/lib/financial-validation';
 import { ProofViewer } from './ProofViewer';
 
@@ -186,71 +185,8 @@ export function PendingDeposits() {
 
       if (txError) throw txError;
 
-      // 4. If deposit has a plan_id, create active investment
-      if (selectedDeposit.plan_id && selectedDeposit.investment_plan) {
-        const plan = selectedDeposit.investment_plan;
-        const principalAmount = depositAmount;
-        
-        // Calculate daily ROI
-        const totalRoi = (principalAmount * plan.roi_percentage) / 100;
-        const dailyRoi = totalRoi / plan.duration_days;
-        
-        // Calculate end date
-        const startDate = new Date();
-        const endDate = new Date();
-        endDate.setDate(endDate.getDate() + plan.duration_days);
-
-        const { error: investmentError } = await supabase
-          .from('active_investments')
-          .insert({
-            user_id: selectedDeposit.user_id,
-            plan_id: selectedDeposit.plan_id,
-            deposit_id: selectedDeposit.id,
-            principal_amount: principalAmount,
-            daily_roi: dailyRoi,
-            total_roi_earned: 0,
-            claimed_roi: 0,
-            start_date: startDate.toISOString(),
-            end_date: endDate.toISOString(),
-            status: 'active',
-          });
-
-        if (investmentError) throw investmentError;
-
-        // Deduct the principal from the balance (it's now in the investment)
-        const { error: deductError } = await supabase
-          .from('investments')
-          .update({ balance: newBalance - principalAmount })
-          .eq('user_id', selectedDeposit.user_id);
-
-        if (deductError) throw deductError;
-
-        // Record investment transaction
-        const { error: investTxError } = await supabase
-          .from('transactions')
-          .insert({
-            user_id: selectedDeposit.user_id,
-            type: 'investment',
-            amount: -principalAmount,
-            description: `Investment activated - ${plan.name} Plan`,
-            performed_by: user.id,
-          });
-
-        if (investTxError) throw investTxError;
-
-        // Create investment notification via admin insert (RLS allows admins)
-        await createNotification(
-          selectedDeposit.user_id,
-          'Investment Activated',
-          `Your ${plan.name} Plan has been activated with $${principalAmount.toFixed(2)}. Daily ROI: $${dailyRoi.toFixed(2)}. Duration: ${plan.duration_days} days.`,
-          'investment'
-        );
-
-        toast.success(`Deposit confirmed and ${plan.name} Plan activated!`);
-      } else {
-        // Deposit notification is now handled by database trigger (on_deposit_status_change)
-        toast.success('Deposit confirmed successfully');
-      }
+      // Deposit adds to balance only. User activates investments from Investment Plans tab.
+      toast.success('Deposit confirmed. Funds have been added to the user\'s balance.');
 
       // Audit log is now handled by database trigger (on_deposit_audit)
 
@@ -463,11 +399,9 @@ export function PendingDeposits() {
               <p className="text-sm text-muted-foreground">
                 {selectedDeposit?.crypto_amount} {selectedDeposit?.crypto_type}
               </p>
-              {selectedDeposit?.investment_plan && (
-                <p className="text-sm text-primary mt-2 font-medium">
-                  Will activate: {selectedDeposit.investment_plan.name} Plan ({selectedDeposit.investment_plan.roi_percentage}% ROI over {selectedDeposit.investment_plan.duration_days} days)
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground mt-2">
+                Funds will be added to the user&apos;s available balance. They can activate an investment plan from the Investment Plans tab.
+              </p>
             </div>
             
             <div className="space-y-2">

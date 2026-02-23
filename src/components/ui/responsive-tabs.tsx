@@ -21,6 +21,8 @@ interface ResponsiveTabsProps {
   defaultValue: string;
   children: React.ReactNode;
   className?: string;
+  value?: string;
+  onValueChange?: (value: string) => void;
 }
 
 export function ResponsiveTabs({
@@ -28,18 +30,30 @@ export function ResponsiveTabs({
   defaultValue,
   children,
   className,
+  value,
+  onValueChange,
 }: ResponsiveTabsProps) {
   const isMobile = useIsMobile();
-  const [activeTab, setActiveTab] = React.useState(defaultValue);
+  const [internalActiveTab, setInternalActiveTab] = React.useState(defaultValue);
+
+  const isControlled = value !== undefined;
+  const activeTab = isControlled ? value : internalActiveTab;
+
+  const handleChange = (next: string) => {
+    if (!isControlled) {
+      setInternalActiveTab(next);
+    }
+    onValueChange?.(next);
+  };
 
   return (
     <Tabs
       value={activeTab}
-      onValueChange={setActiveTab}
+      onValueChange={handleChange}
       className={cn("space-y-6", className)}
     >
       {isMobile ? (
-        <Select value={activeTab} onValueChange={setActiveTab}>
+        <Select value={activeTab} onValueChange={handleChange}>
           <SelectTrigger className="w-full bg-muted/50">
             <SelectValue>
               <div className="flex items-center gap-2">

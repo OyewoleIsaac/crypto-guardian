@@ -43,6 +43,7 @@ interface Withdrawal {
   status: string;
   wallet_address: string;
   crypto_type: string;
+  network?: string | null;
   admin_notes: string | null;
   processed_by: string | null;
   processed_at: string | null;
@@ -119,37 +120,49 @@ export function WithdrawalManagement() {
 
       if (updateError) throw updateError;
 
-      // If approved, deduct from user balance
+      // Balance was already deducted when user submitted; on approve we just record the transaction.
+      // On reject, we must refund the balance.
       if (action === 'approved') {
-        const { data: investment, error: fetchError } = await supabase
-          .from('investments')
-          .select('balance')
-          .eq('user_id', selectedWithdrawal.user_id)
-          .single();
-
-        if (fetchError) throw fetchError;
-
-        const newBalance = (investment?.balance || 0) - selectedWithdrawal.amount;
-        
-        const { error: balanceError } = await supabase
-          .from('investments')
-          .update({ balance: Math.max(0, newBalance) })
-          .eq('user_id', selectedWithdrawal.user_id);
-
-        if (balanceError) throw balanceError;
-
-        // Record transaction
         const { error: txError } = await supabase
           .from('transactions')
           .insert({
             user_id: selectedWithdrawal.user_id,
             type: 'withdrawal',
             amount: -selectedWithdrawal.amount,
-            description: `Withdrawal to ${selectedWithdrawal.wallet_address}`,
+            description: `Withdrawal approved - ${selectedWithdrawal.crypto_type} to ${selectedWithdrawal.wallet_address}`,
             performed_by: user.id,
           });
 
         if (txError) throw txError;
+      } else if (action === 'rejected') {
+        // Refund: add the amount back to user balance
+        const { data: investment, error: fetchError } = await supabase
+          .from('investments')
+          .select('balance')
+          .eq('user_id', selectedWithdrawal.user_id)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        const currentBalance = Number(investment?.balance ?? 0);
+        const newBalance = currentBalance + selectedWithdrawal.amount;
+
+        const { error: balanceError } = await supabase
+          .from('investments')
+          .update({ balance: newBalance })
+          .eq('user_id', selectedWithdrawal.user_id);
+
+        if (balanceError) throw balanceError;
+
+        await supabase
+          .from('transactions')
+          .insert({
+            user_id: selectedWithdrawal.user_id,
+            type: 'credit',
+            amount: selectedWithdrawal.amount,
+            description: 'Withdrawal rejected - amount refunded',
+            performed_by: user.id,
+          });
       }
 
       // Notification and audit log are now handled by database triggers
@@ -350,7 +363,10 @@ export function WithdrawalManagement() {
                   <p className="font-bold text-foreground text-lg">
                     ${selectedWithdrawal.amount.toFixed(2)}
                   </p>
-                  <p className="text-sm text-muted-foreground">{selectedWithdrawal.crypto_type}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedWithdrawal.crypto_type}
+                    {selectedWithdrawal.network && ` (${selectedWithdrawal.network})`}
+                  </p>
                 </div>
               </div>
 
@@ -359,6 +375,11 @@ export function WithdrawalManagement() {
                 <p className="font-mono text-sm bg-muted p-2 rounded break-all">
                   {selectedWithdrawal.wallet_address}
                 </p>
+                {selectedWithdrawal.network && (
+                  <p className="text-xs text-muted-foreground">
+                    Network: {selectedWithdrawal.network}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
