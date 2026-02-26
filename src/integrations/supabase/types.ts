@@ -440,6 +440,7 @@ export type Database = {
           created_at: string
           crypto_type: string
           id: string
+          network: string | null
           processed_at: string | null
           processed_by: string | null
           status: string
@@ -453,6 +454,7 @@ export type Database = {
           created_at?: string
           crypto_type?: string
           id?: string
+          network?: string | null
           processed_at?: string | null
           processed_by?: string | null
           status?: string
@@ -466,6 +468,7 @@ export type Database = {
           created_at?: string
           crypto_type?: string
           id?: string
+          network?: string | null
           processed_at?: string | null
           processed_by?: string | null
           status?: string
