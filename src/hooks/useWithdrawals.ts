@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useActiveInvestments } from './useActiveInvestments';
 
 export interface Withdrawal {
   id: string;
@@ -27,7 +26,6 @@ export interface WithdrawalEligibility {
 
 export function useWithdrawals() {
   const { user } = useAuth();
-  const { activeInvestments, isLoading: investmentsLoading } = useActiveInvestments();
   const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -97,7 +95,7 @@ export function useWithdrawals() {
         reason,
         availableBalance,
         daysUntilEligible: null,
-        hasActiveInvestment: activeInvestments.length > 0,
+        hasActiveInvestment: false,
       };
     }
 
@@ -106,9 +104,9 @@ export function useWithdrawals() {
       reason: 'You can withdraw from your available balance.',
       availableBalance,
       daysUntilEligible: null,
-      hasActiveInvestment: activeInvestments.length > 0,
+      hasActiveInvestment: false,
     };
-  }, [user, activeInvestments]);
+  }, [user]);
 
   // Submit withdrawal: only creates the request — balance is deducted by admin on approval
   const submitWithdrawal = async (
@@ -163,7 +161,7 @@ export function useWithdrawals() {
 
   return {
     withdrawals,
-    isLoading: isLoading || investmentsLoading,
+    isLoading,
     error,
     refetch: fetchWithdrawals,
     checkEligibility,

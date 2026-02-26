@@ -250,52 +250,56 @@ export function WithdrawalSection({ onSuccess }: WithdrawalSectionProps = {}) {
     }
   };
 
-  if (isCheckingEligibility) {
-    return (
-      <div className="flex items-center justify-center py-12">
-        <RefreshCw className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
 
       {/* ── Eligibility Status Card ────────────────────────────────────────── */}
       <Card className={`p-6 border-2 ${
-        eligibility?.canWithdraw
+        isCheckingEligibility
+          ? 'border-border'
+          : eligibility?.canWithdraw
           ? 'border-success/30 bg-success/5'
           : 'border-warning/30 bg-warning/5'
       }`}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className={`p-3 rounded-xl self-start ${
-            eligibility?.canWithdraw ? 'bg-success/10' : 'bg-warning/10'
-          }`}>
-            {eligibility?.canWithdraw
-              ? <CheckCircle className="h-6 w-6 text-success" />
-              : <AlertTriangle className="h-6 w-6 text-warning" />
-            }
-          </div>
-          <div className="flex-1">
-            <h3 className="font-semibold text-foreground mb-1">
-              {eligibility?.canWithdraw ? 'Eligible for Withdrawal' : 'Withdrawal Not Available'}
-            </h3>
-            <p className="text-muted-foreground text-sm mb-2">{eligibility?.reason}</p>
-            <div className="flex items-center gap-2 text-sm">
-              <DollarSign className="h-4 w-4 text-muted-foreground" />
-              <span>
-                Available:{' '}
-                <strong className="text-foreground">
-                  ${eligibility?.availableBalance?.toFixed(2) || '0.00'}
-                </strong>
-              </span>
+          {isCheckingEligibility ? (
+            <div className="flex-1 space-y-2">
+              <div className="h-5 w-40 rounded bg-muted animate-pulse" />
+              <div className="h-4 w-64 rounded bg-muted animate-pulse" />
+              <div className="h-4 w-32 rounded bg-muted animate-pulse" />
             </div>
-          </div>
+          ) : (
+            <>
+              <div className={`p-3 rounded-xl self-start ${
+                eligibility?.canWithdraw ? 'bg-success/10' : 'bg-warning/10'
+              }`}>
+                {eligibility?.canWithdraw
+                  ? <CheckCircle className="h-6 w-6 text-success" />
+                  : <AlertTriangle className="h-6 w-6 text-warning" />
+                }
+              </div>
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground mb-1">
+                  {eligibility?.canWithdraw ? 'Eligible for Withdrawal' : 'Withdrawal Not Available'}
+                </h3>
+                <p className="text-muted-foreground text-sm mb-2">{eligibility?.reason}</p>
+                <div className="flex items-center gap-2 text-sm">
+                  <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  <span>
+                    Available:{' '}
+                    <strong className="text-foreground">
+                      ${eligibility?.availableBalance?.toFixed(2) || '0.00'}
+                    </strong>
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
 
           {/* Request Withdrawal dialog trigger */}
           <Dialog open={withdrawDialogOpen} onOpenChange={handleWithdrawDialogOpenChange}>
             <DialogTrigger asChild>
-              <Button variant="hero" disabled={!eligibility?.canWithdraw} className="shrink-0">
+              <Button variant="hero" disabled={isCheckingEligibility || !eligibility?.canWithdraw} className="shrink-0">
                 <ArrowDownToLine className="h-4 w-4 mr-2" />
                 Request Withdrawal
               </Button>
