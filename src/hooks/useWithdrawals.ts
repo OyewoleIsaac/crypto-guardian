@@ -34,10 +34,10 @@ export function useWithdrawals() {
 
   const fetchWithdrawals = useCallback(async () => {
     if (!user) return;
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const { data, error: fetchError } = await supabase
         .from('withdrawals')
@@ -59,7 +59,7 @@ export function useWithdrawals() {
     fetchWithdrawals();
   }, [fetchWithdrawals]);
 
-  // Check withdrawal eligibility: can withdraw if balance > 0
+  // Available balance = actual balance minus all pending (not yet approved) withdrawals
   const checkEligibility = useCallback(async (): Promise<WithdrawalEligibility> => {
     if (!user) {
       return {
@@ -71,22 +71,30 @@ export function useWithdrawals() {
       };
     }
 
-    const { data: investment, error: balanceError } = await supabase
-      .from('investments')
-      .select('balance')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    const [{ data: investment }, { data: pending }] = await Promise.all([
+      supabase
+        .from('investments')
+        .select('balance')
+        .eq('user_id', user.id)
+        .maybeSingle(),
+      supabase
+        .from('withdrawals')
+        .select('amount')
+        .eq('user_id', user.id)
+        .eq('status', 'pending'),
+    ]);
 
-    if (balanceError) {
-      console.error('Error fetching balance:', balanceError);
-    }
-
-    const availableBalance = Number(investment?.balance || 0);
+    const actualBalance = Number(investment?.balance || 0);
+    const pendingTotal = (pending || []).reduce((sum, w) => sum + Number(w.amount), 0);
+    const availableBalance = Math.max(0, actualBalance - pendingTotal);
 
     if (availableBalance <= 0) {
+      const reason = pendingTotal > 0
+        ? `Your full balance is reserved for ${pending!.length} pending withdrawal${pending!.length > 1 ? 's' : ''}. Wait for them to be processed or contact support.`
+        : 'No balance available for withdrawal. Make a deposit or earn ROI first.';
       return {
         canWithdraw: false,
-        reason: 'No balance available for withdrawal. Make a deposit first.',
+        reason,
         availableBalance,
         daysUntilEligible: null,
         hasActiveInvestment: activeInvestments.length > 0,
@@ -102,7 +110,7 @@ export function useWithdrawals() {
     };
   }, [user, activeInvestments]);
 
-  // Submit withdrawal: deduct balance immediately, create pending withdrawal
+  // Submit withdrawal: only creates the request — balance is deducted by admin on approval
   const submitWithdrawal = async (
     amount: number,
     walletAddress: string,
@@ -116,32 +124,16 @@ export function useWithdrawals() {
       throw new Error(eligibility.reason);
     }
 
-    if (amount > eligibility.availableBalance) {
-      throw new Error('Insufficient balance for this withdrawal amount.');
-    }
-
     if (amount <= 0) {
       throw new Error('Withdrawal amount must be greater than zero.');
     }
 
-    // 1. Deduct from balance immediately
-    const { data: investment } = await supabase
-      .from('investments')
-      .select('balance')
-      .eq('user_id', user.id)
-      .maybeSingle();
+    if (amount > eligibility.availableBalance) {
+      throw new Error(
+        `Amount exceeds your available balance of $${eligibility.availableBalance.toFixed(2)}.`
+      );
+    }
 
-    const currentBalance = Number(investment?.balance || 0);
-    const newBalance = Math.max(0, currentBalance - amount);
-
-    const { error: balanceError } = await supabase
-      .from('investments')
-      .update({ balance: newBalance })
-      .eq('user_id', user.id);
-
-    if (balanceError) throw balanceError;
-
-    // 2. Create pending withdrawal
     const { data, error } = await supabase
       .from('withdrawals')
       .insert({
@@ -155,17 +147,14 @@ export function useWithdrawals() {
       .select()
       .single();
 
-    if (error) {
-      // Refund on insert failure
-      await supabase.from('investments').update({ balance: currentBalance }).eq('user_id', user.id);
-      throw error;
-    }
+    if (error) throw error;
 
-    await supabase.from('notifications').insert({
-      user_id: user.id,
-      title: 'Withdrawal Request Submitted',
-      message: `Your withdrawal of $${amount.toFixed(2)} (${cryptoType}) is pending. Processing typically takes 1–3 hours, or up to 3 business days in some cases.`,
-      type: 'info',
+    // Notify the user (RPC bypasses notifications RLS)
+    await supabase.rpc('create_system_notification', {
+      p_user_id: user.id,
+      p_title: 'Withdrawal Request Submitted',
+      p_message: `Your withdrawal of $${amount.toFixed(2)} (${cryptoType}) has been submitted and is pending admin approval.`,
+      p_type: 'info',
     });
 
     await fetchWithdrawals();

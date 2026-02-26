@@ -120,9 +120,28 @@ export function WithdrawalManagement() {
 
       if (updateError) throw updateError;
 
-      // Balance was already deducted when user submitted; on approve we just record the transaction.
-      // On reject, we must refund the balance.
+      // On approval: deduct balance now and record transaction.
+      // On rejection: no balance change (balance was never deducted upfront).
       if (action === 'approved') {
+        // Deduct balance on approval
+        const { data: investment, error: fetchError } = await supabase
+          .from('investments')
+          .select('balance')
+          .eq('user_id', selectedWithdrawal.user_id)
+          .maybeSingle();
+
+        if (fetchError) throw fetchError;
+
+        const currentBalance = Number(investment?.balance ?? 0);
+        const newBalance = Math.max(0, currentBalance - selectedWithdrawal.amount);
+
+        const { error: balanceError } = await supabase
+          .from('investments')
+          .update({ balance: newBalance })
+          .eq('user_id', selectedWithdrawal.user_id);
+
+        if (balanceError) throw balanceError;
+
         const { error: txError } = await supabase
           .from('transactions')
           .insert({
@@ -134,39 +153,9 @@ export function WithdrawalManagement() {
           });
 
         if (txError) throw txError;
-      } else if (action === 'rejected') {
-        // Refund: add the amount back to user balance
-        const { data: investment, error: fetchError } = await supabase
-          .from('investments')
-          .select('balance')
-          .eq('user_id', selectedWithdrawal.user_id)
-          .maybeSingle();
-
-        if (fetchError) throw fetchError;
-
-        const currentBalance = Number(investment?.balance ?? 0);
-        const newBalance = currentBalance + selectedWithdrawal.amount;
-
-        const { error: balanceError } = await supabase
-          .from('investments')
-          .update({ balance: newBalance })
-          .eq('user_id', selectedWithdrawal.user_id);
-
-        if (balanceError) throw balanceError;
-
-        await supabase
-          .from('transactions')
-          .insert({
-            user_id: selectedWithdrawal.user_id,
-            type: 'credit',
-            amount: selectedWithdrawal.amount,
-            description: 'Withdrawal rejected - amount refunded',
-            performed_by: user.id,
-          });
       }
-
-      // Notification and audit log are now handled by database triggers
-      // (on_withdrawal_status_change and on_withdrawal_audit)
+      // Rejection: balance was never deducted so nothing to refund.
+      // User notification is handled by the on_withdrawal_status_change DB trigger.
 
       toast.success(`Withdrawal ${action} successfully`);
       setSelectedWithdrawal(null);
