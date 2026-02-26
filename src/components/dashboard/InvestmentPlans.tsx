@@ -234,8 +234,10 @@ export function InvestmentPlans({
         open={depositModalOpen}
         onOpenChange={setDepositModalOpen}
         onSuccess={handleDepositSuccess}
-        selectedPlanId={selectedPlan?.id}
-        currentBalance={currentBalance}
+        depositHint={selectedPlan ? {
+          amountNeeded: Math.max(0, selectedPlan.min_investment - currentBalance),
+          planName: selectedPlan.name,
+        } : undefined}
       />
     </>
   );

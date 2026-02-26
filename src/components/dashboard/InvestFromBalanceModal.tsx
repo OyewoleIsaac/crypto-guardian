@@ -87,25 +87,22 @@ export function InvestFromBalanceModal({
 
       if (txError) throw txError;
 
-      // 4. Create notification
-      const { error: notifError } = await supabase
-        .from('notifications')
-        .insert({
-          user_id: user.id,
-          title: 'Investment Activated',
-          message: `Your ${plan.name} Plan has been activated with $${parsedAmount.toFixed(2)}. Daily ROI: $${dailyRoi.toFixed(2)}. Duration: ${plan.duration_days} days.`,
-          type: 'investment',
-        });
-
-      if (notifError) console.warn('Notification insert failed:', notifError);
+      // 4. Create notification via RPC (bypasses RLS on notifications table)
+      await supabase.rpc('create_system_notification', {
+        p_user_id: user.id,
+        p_title: 'Investment Activated',
+        p_message: `Your ${plan.name} Plan has been activated with $${parsedAmount.toFixed(2)}. Daily ROI: $${dailyRoi.toFixed(2)}. Duration: ${plan.duration_days} days.`,
+        p_type: 'investment',
+      });
 
       toast.success(`${plan.name} Plan activated with $${parsedAmount.toLocaleString()}!`);
       onOpenChange(false);
       setAmount('');
       onSuccess();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Investment error:', error);
-      toast.error('Failed to activate investment');
+      const message = error?.message || 'Failed to activate investment. Please try again.';
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }

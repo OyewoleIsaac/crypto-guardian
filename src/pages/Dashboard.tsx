@@ -511,7 +511,7 @@ export default function Dashboard() {
                   <Button
                     variant="outline"
                     className="mt-4"
-                    onClick={() => setDepositModalOpen(true)}
+                    onClick={() => switchToTab('plans')}
                   >
                     Start Investing
                   </Button>

@@ -6,41 +6,41 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePaymentMethods } from '@/hooks/usePaymentMethods';
-import { useInvestmentPlans } from '@/hooks/useInvestmentPlans';
 import { useCryptoPrices } from '@/hooks/useCryptoPrices';
 import { toast } from 'sonner';
-import { Copy, Check, Upload, X, ArrowRight, RefreshCw, AlertCircle } from 'lucide-react';
-import { 
-  parseFinancialAmount, 
-  parseCryptoAmount, 
+import { Copy, Check, Upload, X, ArrowRight, RefreshCw, AlertCircle, Info } from 'lucide-react';
+import {
+  parseFinancialAmount,
+  parseCryptoAmount,
   validateFinancialInput,
-  MAX_FINANCIAL_AMOUNT 
+  MAX_FINANCIAL_AMOUNT
 } from '@/lib/financial-validation';
+
+interface DepositHint {
+  amountNeeded: number;
+  planName: string;
+}
 
 interface NewDepositModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: () => void;
-  selectedPlanId?: string;
-  currentBalance?: number;
+  depositHint?: DepositHint;
 }
 
-export function NewDepositModal({ 
-  open, 
-  onOpenChange, 
+export function NewDepositModal({
+  open,
+  onOpenChange,
   onSuccess,
-  selectedPlanId,
-  currentBalance = 0,
+  depositHint,
 }: NewDepositModalProps) {
   const { user } = useAuth();
   const { enabledMethods, isLoading: methodsLoading } = usePaymentMethods();
-  const { plans } = useInvestmentPlans();
-  
+
   const cryptoSymbols = useMemo(() => enabledMethods.map(m => m.crypto_type), [enabledMethods]);
   const { prices, isLoading: pricesLoading, convertUsdToCrypto, convertCryptoToUsd, refetch: refetchPrices } = useCryptoPrices(cryptoSymbols);
-  
-  const [step, setStep] = useState<'plan' | 'amount' | 'payment'>('plan');
-  const [selectedPlan, setSelectedPlan] = useState<string | null>(selectedPlanId || null);
+
+  const [step, setStep] = useState<'amount' | 'payment'>('amount');
   const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [usdAmount, setUsdAmount] = useState('');
   const [cryptoAmount, setCryptoAmount] = useState('');
@@ -50,14 +50,6 @@ export function NewDepositModal({
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Set initial plan if provided
-  useEffect(() => {
-    if (selectedPlanId) {
-      setSelectedPlan(selectedPlanId);
-      setStep('amount');
-    }
-  }, [selectedPlanId]);
-
   // Auto-select first enabled method
   useEffect(() => {
     if (enabledMethods.length > 0 && !selectedMethod) {
@@ -65,11 +57,7 @@ export function NewDepositModal({
     }
   }, [enabledMethods, selectedMethod]);
 
-  const selectedPlanDetails = plans.find(p => p.id === selectedPlan);
   const selectedPaymentMethod = enabledMethods.find(m => m.crypto_type === selectedMethod);
-
-  const minRequired = selectedPlanDetails?.min_investment || 0;
-  const amountNeeded = Math.max(0, minRequired - currentBalance);
 
   // Handle USD amount change with validation
   const handleUsdChange = (value: string) => {
@@ -169,8 +157,8 @@ export function NewDepositModal({
       return;
     }
 
-    if (!selectedPlan || !selectedMethod || !selectedPaymentMethod) {
-      toast.error('Please complete all steps');
+    if (!selectedMethod || !selectedPaymentMethod) {
+      toast.error('Please select a payment method');
       return;
     }
 
@@ -201,7 +189,6 @@ export function NewDepositModal({
         wallet_address: selectedPaymentMethod.wallet_address,
         status: 'pending',
         proof_image_url: publicUrl,
-        plan_id: selectedPlan,
       });
 
       if (error) throw error;
@@ -219,18 +206,12 @@ export function NewDepositModal({
   };
 
   const resetForm = () => {
-    setStep('plan');
-    setSelectedPlan(null);
+    setStep('amount');
     setSelectedMethod(enabledMethods[0]?.crypto_type || null);
     setUsdAmount('');
     setCryptoAmount('');
     setProofImage(null);
     setPreviewUrl(null);
-  };
-
-  const canProceedToPayment = () => {
-    const totalAfterDeposit = currentBalance + parseFloat(usdAmount || '0');
-    return totalAfterDeposit >= minRequired;
   };
 
   return (
@@ -240,95 +221,39 @@ export function NewDepositModal({
     }}>
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="font-display text-xl">New Investment Deposit</DialogTitle>
+          <DialogTitle className="font-display text-xl">New Deposit</DialogTitle>
         </DialogHeader>
 
         {/* Steps Indicator */}
         <div className="flex items-center gap-2 mb-4">
-          {['plan', 'amount', 'payment'].map((s, i) => (
+          {['amount', 'payment'].map((s, i) => (
             <div key={s} className="flex items-center flex-1">
               <div className={`h-8 w-8 rounded-full flex items-center justify-center text-sm font-medium ${
-                step === s 
-                  ? 'bg-primary text-primary-foreground' 
-                  : i < ['plan', 'amount', 'payment'].indexOf(step)
+                step === s
+                  ? 'bg-primary text-primary-foreground'
+                  : i < ['amount', 'payment'].indexOf(step)
                   ? 'bg-success text-success-foreground'
                   : 'bg-muted text-muted-foreground'
               }`}>
                 {i + 1}
               </div>
-              {i < 2 && <div className="h-0.5 flex-1 bg-border mx-2" />}
+              {i < 1 && <div className="h-0.5 flex-1 bg-border mx-2" />}
             </div>
           ))}
         </div>
 
         <div className="space-y-5 py-4">
-          {/* Step 1: Select Plan */}
-          {step === 'plan' && (
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Select an investment plan to proceed with your deposit.
-              </p>
-              <div className="space-y-2">
-                {plans.filter(p => p.is_active).map((plan) => (
-                  <button
-                    key={plan.id}
-                    type="button"
-                    onClick={() => setSelectedPlan(plan.id)}
-                    className={`w-full p-4 rounded-xl border-2 text-left transition-all ${
-                      selectedPlan === plan.id
-                        ? 'border-primary bg-primary/5'
-                        : 'border-border hover:border-primary/50'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-foreground">{plan.name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          Min: ${plan.min_investment.toLocaleString()} | ROI: {plan.roi_percentage}% / {plan.duration_days} days
-                        </p>
-                      </div>
-                      <div className={`h-5 w-5 rounded-full border-2 ${
-                        selectedPlan === plan.id
-                          ? 'border-primary bg-primary'
-                          : 'border-muted-foreground'
-                      }`}>
-                        {selectedPlan === plan.id && (
-                          <Check className="h-4 w-4 text-primary-foreground" />
-                        )}
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-              <Button 
-                className="w-full gap-2" 
-                onClick={() => setStep('amount')}
-                disabled={!selectedPlan}
-              >
-                Continue <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-
-          {/* Step 2: Enter Amount */}
+          {/* Step 1: Enter Amount */}
           {step === 'amount' && (
             <div className="space-y-4">
-              {selectedPlanDetails && (
-                <div className="rounded-xl bg-muted/50 p-4">
-                  <p className="text-sm text-muted-foreground mb-1">Selected Plan</p>
-                  <p className="font-semibold text-foreground">{selectedPlanDetails.name}</p>
-                  <p className="text-sm text-muted-foreground">
-                    Minimum investment: ${selectedPlanDetails.min_investment.toLocaleString()}
-                  </p>
-                </div>
-              )}
-
-              {amountNeeded > 0 && (
-                <div className="flex items-start gap-2 rounded-xl bg-warning/10 border border-warning/20 p-3">
-                  <AlertCircle className="h-5 w-5 text-warning flex-shrink-0" />
-                  <p className="text-sm text-warning">
-                    You need at least <strong>${amountNeeded.toLocaleString()}</strong> more to activate this plan.
-                    Current balance: ${currentBalance.toLocaleString()}
+              {/* Deposit hint from insufficient balance flow */}
+              {depositHint && (
+                <div className="flex items-start gap-3 rounded-xl bg-primary/10 border border-primary/20 p-3">
+                  <Info className="h-5 w-5 text-primary flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-foreground">
+                    To activate the <strong>{depositHint.planName}</strong> plan, deposit at least{' '}
+                    <strong className="text-primary">${depositHint.amountNeeded.toLocaleString()}</strong>.
+                    Once your deposit is approved, return to <strong>Investment Plans</strong> to start investing.
                   </p>
                 </div>
               )}
@@ -399,29 +324,17 @@ export function NewDepositModal({
                 />
               </div>
 
-              <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setStep('plan')} className="flex-1">
-                  Back
-                </Button>
-                <Button 
-                  className="flex-1 gap-2" 
-                  onClick={() => setStep('payment')}
-                  disabled={!usdAmount || !canProceedToPayment()}
-                >
-                  Continue <ArrowRight className="h-4 w-4" />
-                </Button>
-              </div>
-
-              {usdAmount && !canProceedToPayment() && (
-                <p className="text-sm text-destructive text-center">
-                  Total after deposit (${(currentBalance + parseFloat(usdAmount)).toLocaleString()}) 
-                  must be at least ${minRequired.toLocaleString()}
-                </p>
-              )}
+              <Button
+                className="w-full gap-2"
+                onClick={() => setStep('payment')}
+                disabled={!usdAmount}
+              >
+                Continue <ArrowRight className="h-4 w-4" />
+              </Button>
             </div>
           )}
 
-          {/* Step 3: Payment */}
+          {/* Step 2: Payment */}
           {step === 'payment' && selectedPaymentMethod && (
             <div className="space-y-4">
               <div className="rounded-xl bg-success/10 border border-success/20 p-4">
