@@ -433,6 +433,36 @@ export type Database = {
         }
         Relationships: []
       }
+      user_withdrawal_methods: {
+        Row: {
+          created_at: string
+          crypto_type: string
+          id: string
+          label: string | null
+          network: string | null
+          user_id: string
+          wallet_address: string
+        }
+        Insert: {
+          created_at?: string
+          crypto_type: string
+          id?: string
+          label?: string | null
+          network?: string | null
+          user_id: string
+          wallet_address: string
+        }
+        Update: {
+          created_at?: string
+          crypto_type?: string
+          id?: string
+          label?: string | null
+          network?: string | null
+          user_id?: string
+          wallet_address?: string
+        }
+        Relationships: []
+      }
       withdrawals: {
         Row: {
           admin_notes: string | null
